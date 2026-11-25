@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portail de Jeux HTML</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen p-6">
+    <div class="max-w-5xl mx-auto">
+        <header class="text-center mb-10">
+            <h1 class="text-4xl font-black text-amber-400 mb-2">🎮 Arcade HTML</h1>
+            <p class="text-slate-400">1 partie offerte par jeu • Déblocage illimité ensuite</p>
+        </header>
+
+        <div id="games-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5"></div>
+    </div>
+
+    <!-- Modale de déblocage -->
+    <div id="unlock-modal" class="fixed inset-0 bg-black/80 hidden items-center justify-center p-4 z-50">
+        <div class="bg-slate-900 border border-amber-500/50 rounded-2xl p-6 max-w-sm w-full text-center">
+            <h2 class="text-2xl font-bold text-amber-400 mb-2">Partie gratuite utilisée</h2>
+            <p id="modal-game-name" class="text-sm text-slate-300 mb-4"></p>
+            <p class="text-xs text-slate-400 mb-4">
+                Débloquez la rejouabilité illimitée via votre lien de paiement, puis entrez votre code d'accès :
+            </p>
+            <a id="payment-link" href="#" target="_blank" rel="noopener"
+               class="block w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3 rounded-xl mb-4">
+                💳 Obtenir un accès illimité
+            </a>
+            <input id="unlock-code-input" type="text" placeholder="Code d'accès (ex: REPLAY2026)"
+                   class="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-white text-center mb-3 uppercase">
+            <div class="flex gap-2">
+                <button onclick="verifyUnlockCode()" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 rounded-xl">
+                    Débloquer
+                </button>
+                <button onclick="closeUnlockModal()" class="bg-slate-700 hover:bg-slate-600 text-white font-bold px-4 py-2 rounded-xl">
+                    Fermer
+                </button>
+            </div>
+            <p id="unlock-error" class="text-xs text-red-400 mt-2 hidden">Code invalide.</p>
+        </div>
+    </div>
+
+    <script>
+        const GAMES = [
+            { id: 'empire', title: "L'Âge des Rois", tag: 'Stratégie / Mobile', file: 'empire-rois.html' },
+            { id: 'assiette', title: "L'Assiette Équilibrée", tag: '2 Joueurs', file: 'assiette-multi.html' },
+            { id: 'tcg', title: 'Dark Fantasy TCG', tag: 'Cartes vs IA', file: 'dark-fantasy-tcg.html' },
+            { id: 'echecs', title: "Jeu d'Échecs", tag: 'Solo / 2 Joueurs', file: 'echecs.html' },
+            { id: 'foret-local', title: 'Écosystème Forêt (Scores)', tag: 'Draft Solo', file: 'ecosysteme-foret-local.html' },
+            { id: 'foret-solo', title: 'Écosystème Forêt (Classique)', tag: 'Draft Solo', file: 'ecosysteme-foret-solo.html' },
+            { id: 'explorateurs', title: 'Explorateurs Mobile', tag: 'Exploration vs IA', file: 'explorateurs.html' },
+            { id: 'got-five', title: 'Got Five !', tag: 'Déduction', file: 'got-five.html' },
+            { id: 'gemmes', title: 'Marchands de Gemmes', tag: 'Gestion / IA & 2J', file: 'marchands-gemmes.html' },
+            { id: 'monopoly', title: 'Monopoly Pocket', tag: 'Plateau 2 Joueurs', file: 'monopoly.html' }
+        ];
+
+        const VALID_CODES = ['REPLAY2026', 'VIP-ARCADE']; // Exemple côté client (à renforcer côté serveur)
+        const PAYMENT_URL = 'https://example.com/paiement'; // Remplacez par votre lien de paiement
+        let pendingGame = null;
+
+        function hasUnlocked(gameId) {
+            return localStorage.getItem('unlocked_all') === '1' || localStorage.getItem('unlocked_' + gameId) === '1';
+        }
+
+        function getPlaysCount(gameId) {
+            return parseInt(localStorage.getItem('plays_' + gameId) || '0', 10);
+        }
+
+        function handleLaunchGame(game) {
+            if (hasUnlocked(game.id) || getPlaysCount(game.id) < 1) {
+                localStorage.setItem('plays_' + game.id, String(getPlaysCount(game.id) + 1));
+                window.location.href = game.file;
+            } else {
+                pendingGame = game;
+                document.getElementById('modal-game-name').innerText = `Jeu : ${game.title}`;
+                document.getElementById('payment-link').href = PAYMENT_URL;
+                document.getElementById('unlock-error').classList.add('hidden');
+                document.getElementById('unlock-code-input').value = '';
+                const modal = document.getElementById('unlock-modal');
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            }
+        }
+
+        function closeUnlockModal() {
+            const modal = document.getElementById('unlock-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            pendingGame = null;
+        }
+
+        function verifyUnlockCode() {
+            const code = document.getElementById('unlock-code-input').value.trim().toUpperCase();
+            if (VALID_CODES.includes(code)) {
+                localStorage.setItem('unlocked_all', '1');
+                const target = pendingGame;
+                closeUnlockModal();
+                if (target) handleLaunchGame(target);
+            } else {
+                document.getElementById('unlock-error').classList.remove('hidden');
+            }
+        }
+
+        const grid = document.getElementById('games-grid');
+        GAMES.forEach(game => {
+            const card = document.createElement('div');
+            card.className = 'bg-slate-900 border border-slate-800 rounded-2xl p-5 flex flex-col justify-between';
+            card.innerHTML = `
+                <div>
+                    <span class="text-xs uppercase font-bold text-amber-400">${game.tag}</span>
+                    <h2 class="text-xl font-bold mt-1 mb-4">${game.title}</h2>
+                </div>
+                <button class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 rounded-xl">
+                    Jouer
+                </button>
+            `;
+            card.querySelector('button').onclick = () => handleLaunchGame(game);
+            grid.appendChild(card);
+        });
+    </script>
+</body>
+</html>
