@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Monopoly Pocket</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #f8fafc; font-family: system-ui, sans-serif; user-select: none; }
+        .token { transition: all 0.3s ease-in-out; }
+    </style>
+</head>
+<body class="min-h-[100dvh] flex flex-col items-center justify-between p-3 text-slate-800">
+
+    <!-- En-tête / Scores -->
+    <div class="w-full max-w-md bg-white p-3 rounded-2xl shadow-md border border-slate-200 flex justify-around items-center">
+        <div id="p1-box" class="text-center transition-all p-2 rounded-xl bg-red-50 border-2 border-red-400 flex-1 mr-2">
+            <div class="text-xs font-bold text-red-600">🔴 Joueur 1</div>
+            <div id="p1-money" class="text-lg font-black text-slate-700">1500 €</div>
+        </div>
+        <div id="p2-box" class="text-center transition-all p-2 rounded-xl bg-slate-50 border-2 border-transparent flex-1 ml-2">
+            <div class="text-xs font-bold text-blue-600">🔵 Joueur 2</div>
+            <div id="p2-money" class="text-lg font-black text-slate-700">1500 €</div>
+        </div>
+    </div>
+
+    <!-- Plateau de jeu simplifié (Grille 6x6) -->
+    <div class="w-full max-w-[380px] aspect-square bg-emerald-100 border-4 border-emerald-600 rounded-2xl p-1 grid grid-cols-6 grid-rows-6 gap-1 shadow-inner relative" id="board">
+        <!-- Généré dynamiquement par JS -->
+    </div>
+
+    <!-- Zone d'action & Contrôles -->
+    <div class="w-full max-w-md bg-white p-4 rounded-2xl shadow-lg border border-slate-200 text-center flex flex-col gap-3">
+        <div id="game-status" class="text-sm font-bold text-slate-600 min-h-[24px]">
+            Tour du Joueur 1. Lancez les dés !
+        </div>
+
+        <div class="flex gap-2 justify-center">
+            <div id="dice-display" class="bg-slate-100 border-2 border-slate-300 w-12 h-12 rounded-xl flex items-center justify-center text-2xl font-black shadow-inner">🎲</div>
+            <button id="roll-btn" onclick="rollDice()" class="flex-1 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-black py-3 rounded-xl shadow-md transition-all text-lg">
+                Lancer les dés 🎲
+            </button>
+        </div>
+
+        <div id="action-buttons" class="flex gap-2 hidden">
+            <button id="buy-btn" onclick="buyProperty()" class="flex-1 bg-amber-500 hover:bg-amber-400 active:scale-95 text-white font-bold py-2.5 rounded-xl shadow transition-all text-sm">
+                Acheter (<span id="buy-price">0</span> €)
+            </button>
+            <button onclick="nextTurn()" class="flex-1 bg-slate-700 hover:bg-slate-600 active:scale-95 text-white font-bold py-2.5 rounded-xl shadow transition-all text-sm">
+                Passer le tour ➡️
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Configuration des 20 cases du plateau (chemin en contour 6x6)
+        const BOARD_LAYOUT = [
+            { id: 0, name: "Départ 🎯", type: "start", price: 0, rent: 0, color: "bg-emerald-200", r: 5, c: 5 },
+            { id: 1, name: "Rue de Belville", type: "street", price: 60, rent: 10, color: "bg-amber-700", r: 5, c: 4 },
+            { id: 2, name: "Caisse de Communauté", type: "event", price: 0, rent: 0, color: "bg-sky-200", r: 5, c: 3 },
+            { id: 3, name: "Rue Lecourbe", type: "street", price: 60, rent: 15, color: "bg-amber-700", r: 5, c: 2 },
+            { id: 4, name: "Impôt sur le revenu", type: "tax", price: 0, rent: 200, color: "bg-red-200", r: 5, c: 1 },
+            { id: 5, name: "Gare Montparnasse", type: "station", price: 200, rent: 25, color: "bg-slate-300", r: 5, c: 0 },
+            
+            { id: 6, name: "Rue de Vaugirard", type: "street", price: 100, rent: 20, color: "bg-cyan-200", r: 4, c: 0 },
+            { id: 7, name: "Chance ❓", type: "event", price: 0, rent: 0, color: "bg-purple-200", r: 3, c: 0 },
+            { id: 8, name: "Rue de Courcelles", type: "street", price: 120, rent: 25, color: "bg-cyan-200", r: 2, c: 0 },
+            { id: 9, name: "Simple Visite / Prison", type: "jail", price: 0, rent: 0, color: "bg-slate-300", r: 1, c: 0 },
+            
+            { id: 10, name: "Avenue de La République", type: "street", price: 140, rent: 30, color: "bg-pink-300", r: 0, c: 0 },
+            { id: 11, name: "Compagnie d'Électricité", type: "utility", price: 150, rent: 35, color: "bg-yellow-200", r: 0, c: 1 },
+            { id: 12, name: "Boulevard de La Villette", type: "street", price: 160, rent: 40, color: "bg-pink-300", r: 0, c: 2 },
+            { id: 13, name: "Gare de Lyon", type: "station", price: 200, rent: 25, color: "bg-slate-300", r: 0, c: 3 },
+            { id: 14, name: "Avenue de Neuilly", type: "street", price: 180, rent: 45, color: "bg-orange-300", r: 0, c: 4 },
+            { id: 15, name: "Parc Gratuits 🅿️", type: "free", price: 0, rent: 0, color: "bg-emerald-200", r: 0, c: 5 },
+
+            { id: 16, name: "Rue de Paradis", type: "street", price: 220, rent: 55, color: "bg-red-400", r: 1, c: 5 },
+            { id: 17, name: "Avenue Mozart", type: "street", price: 240, rent: 60, color: "bg-red-400", r: 2, c: 5 },
+            { id: 18, name: "Alée des Planches", type: "street", price: 260, rent: 70, color: "bg-yellow-400", r: 3, c: 5 },
+            { id: 19, name: "Allez en Prison 👮", type: "gotojail", price: 0, rent: 0, color: "bg-red-300", r: 4, c: 5 }
+        ];
+
+        let players = [
+            { id: 0, name: "Joueur 1", money: 1500, pos: 0, color: "bg-red-500", properties: [] },
+            { id: 1, name: "Joueur 2", money: 1500, pos: 0, color: "bg-blue-500", properties: [] }
+        ];
+
+        let currentTurn = 0;
+        let boardOwners = {}; // { propertyId: playerId }
+
+        function initBoard() {
+            const boardEl = document.getElementById('board');
+            boardEl.innerHTML = '';
+
+            // Création de la grille vide 6x6
+            for(let r=0; r<6; r++) {
+                for(let c=0; c<6; c++) {
+                    const cellData = BOARD_LAYOUT.find(b => b.r === r && b.c === c);
+                    if (cellData) {
+                        boardEl.innerHTML += `
+                            <div id="cell-${cellData.id}" class="${cellData.color} rounded-lg p-1 flex flex-col justify-between items-center text-[9px] font-bold text-center border border-black/10 relative overflow-hidden">
+                                <span class="truncate w-full text-slate-700">${cellData.name}</span>
+                                <div id="tokens-${cellData.id}" class="flex gap-0.5 justify-center items-center absolute bottom-1"></div>
+                            </div>`;
+                    } else {
+                        // Centre du plateau (décoratif)
+                        if(r === 2 && c === 2) {
+                            boardEl.innerHTML += `<div class="col-span-2 row-span-2 flex items-center justify-center font-black text-emerald-800 text-sm opacity-40">MONOPOLY</div>`;
+                        } else if ((r < 2 || r > 3) || (c < 2 || c > 3)) {
+                            // Vide intermédiaire
+                            boardEl.innerHTML += `<div></div>`;
+                        }
+                    }
+                }
+            }
+            updateUI();
+        }
+
+        function updateUI() {
+            // Mettre à jour l'argent
+            document.getElementById('p1-money').innerText = players[0].money + " €";
+            document.getElementById('p2-money').innerText = players[1].money + " €";
+
+            // Style du tour actif
+            if (currentTurn === 0) {
+                document.getElementById('p1-box').className = "text-center transition-all p-2 rounded-xl bg-red-50 border-2 border-red-400 flex-1 mr-2 shadow-sm";
+                document.getElementById('p2-box').className = "text-center transition-all p-2 rounded-xl bg-slate-50 border-2 border-transparent flex-1 ml-2 opacity-70";
+            } else {
+                document.getElementById('p1-box').className = "text-center transition-all p-2 rounded-xl bg-slate-50 border-2 border-transparent flex-1 mr-2 opacity-70";
+                document.getElementById('p2-box').className = "text-center transition-all p-2 rounded-xl bg-blue-50 border-2 border-blue-400 flex-1 ml-2 shadow-sm";
+            }
+
+            // Nettoyer les pions de toutes les cases
+            BOARD_LAYOUT.forEach(b => {
+                document.getElementById(`tokens-${b.id}`).innerHTML = '';
+            });
+
+            // Placer les pions sur les cases actuelles
+            players.forEach(p => {
+                const tokenContainer = document.getElementById(`tokens-${p.pos}`);
+                if(tokenContainer) {
+                    tokenContainer.innerHTML += `<div class="w-3 h-3 rounded-full ${p.color} border border-white shadow token"></div>`;
+                }
+            });
+        }
+
+        function rollDice() {
+            const dice = Math.floor(Math.random() * 6) + 1;
+            document.getElementById('dice-display').innerText = dice;
+            document.getElementById('roll-btn').disabled = true;
+            document.getElementById('roll-btn').classList.add('opacity-50');
+
+            movePlayer(dice);
+        }
+
+        function movePlayer(steps) {
+            const p = players[currentTurn];
+            let oldPos = p.pos;
+            p.pos = (p.pos + steps) % BOARD_LAYOUT.length;
+
+            // Passage par la case départ (+200€)
+            if (p.pos < oldPos) {
+                p.money += 200;
+            }
+
+            updateUI();
+            handleSquareAction(p);
+        }
+
+        function handleSquareAction(p) {
+            const square = BOARD_LAYOUT[p.pos];
+            const statusEl = document.getElementById('game-status');
+            const actionBtns = document.getElementById('action-buttons');
+            
+            actionBtns.classList.add('hidden');
+
+            if (square.type === 'street' || square.type === 'station' || square.type === 'utility') {
+                if (boardOwners[square.id] === undefined) {
+                    if (p.money >= square.price) {
+                        statusEl.innerText = `${p.name} est tombé sur ${square.name}. Voulez-vous l'acheter ?`;
+                        document.getElementById('buy-price').innerText = square.price;
+                        actionBtns.classList.remove('hidden');
+                    } else {
+                        statusEl.innerText = `${p.name} est sur ${square.name}, mais n'a pas assez d'argent !`;
+                        autoNextTurnDelay();
+                    }
+                } else if (boardOwners[square.id] === p.id) {
+                    statusEl.innerText = `${p.name} est sur sa propre propriété (${square.name}).`;
+                    autoNextTurnDelay();
+                } else {
+                    const owner = players[boardOwners[square.id]];
+                    p.money -= square.rent;
+                    owner.money += square.rent;
+                    statusEl.innerText = `${p.name} paye ${square.rent} € de loyer à ${owner.name} !`;
+                    checkGameOver();
+                    updateUI();
+                    autoNextTurnDelay();
+                }
+            } else if (square.type === 'tax') {
+                p.money -= square.rent;
+                statusEl.innerText = `${p.name} paye ${square.rent} € de taxes.`;
+                checkGameOver();
+                updateUI();
+                autoNextTurnDelay();
+            } else if (square.type === 'gotojail') {
+                p.pos = 9; // Case Prison
+                statusEl.innerText = `${p.name} va directement en prison !`;
+                updateUI();
+                autoNextTurnDelay();
+            } else if (square.type === 'event') {
+                const bonus = Math.random() > 0.5 ? 50 : -50;
+                p.money += bonus;
+                statusEl.innerText = `Carte Chance : ${bonus > 0 ? 'Gagnez' : 'Perdez'} ${Math.abs(bonus)} € !`;
+                checkGameOver();
+                updateUI();
+                autoNextTurnDelay();
+            } else {
+                statusEl.innerText = `${p.name} est sur ${square.name}. Tranquille !`;
+                autoNextTurnDelay();
+            }
+        }
+
+        function buyProperty() {
+            const p = players[currentTurn];
+            const square = BOARD_LAYOUT[p.pos];
+
+            p.money -= square.price;
+            boardOwners[square.id] = p.id;
+            p.properties.push(square.id);
+
+            // Mettre un indicateur visuel de propriété sur la case
+            const cell = document.getElementById(`cell-${square.id}`);
+            cell.style.boxShadow = `inset 0 0 0 3px ${p.id === 0 ? '#ef4444' : '#3b82f6'}`;
+
+            document.getElementById('action-buttons').classList.add('hidden');
+            document.getElementById('game-status').innerText = `${p.name} a acheté ${square.name} !`;
+            updateUI();
+            autoNextTurnDelay();
+        }
+
+        function autoNextTurnDelay() {
+            setTimeout(nextTurn, 1800);
+        }
+
+        function nextTurn() {
+            document.getElementById('action-buttons').classList.add('hidden');
+            currentTurn = currentTurn === 0 ? 1 : 0;
+            document.getElementById('game-status').innerText = `Tour de ${players[currentTurn].name}. Lancez les dés !`;
+            document.getElementById('roll-btn').disabled = false;
+            document.getElementById('roll-btn').classList.remove('opacity-50');
+            updateUI();
+        }
+
+        function checkGameOver() {
+            players.forEach(p => {
+                if (p.money < 0) {
+                    alert(`La partie est finie ! ${p.name} est ruiné ! 💸`);
+                    location.reload();
+                }
+            });
+        }
+
+        // Lancer l'initialisation au démarrage
+        initBoard();
+    </script>
+</body>
+</html>

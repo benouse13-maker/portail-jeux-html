@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Le Jeu des Petites Souris</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #1e293b;
+      --line: #94a3b8;
+      --p1: #38bdf8;
+      --p2: #fb7185;
+      --accent: #facc15;
+      --warn: #f59e0b;
+      --recall: #a78bfa;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100dvh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      gap: 8px;
+    }
+
+    header {
+      width: 100%;
+      max-width: 440px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--panel);
+      padding: 8px 14px;
+      border-radius: 14px;
+      border: 1px solid #334155;
+    }
+
+    h1 {
+      font-size: 1.05rem;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .top-actions {
+      display: flex;
+      gap: 6px;
+    }
+
+    button {
+      border: none;
+      border-radius: 10px;
+      padding: 8px 12px;
+      font-weight: 700;
+      font-size: 0.85rem;
+      cursor: pointer;
+      background: #334155;
+      color: var(--text);
+    }
+
+    button:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    button:not(:disabled):active {
+      transform: scale(0.97);
+    }
+
+    button.primary {
+      background: var(--p1);
+      color: #082f49;
+    }
+
+    button.recall {
+      background: var(--recall);
+      color: #1e1b4b;
+    }
+
+    button.warn {
+      background: var(--warn);
+      color: #1c1917;
+    }
+
+    button.cancel {
+      background: #475569;
+      color: var(--text);
+    }
+
+    .hud {
+      width: 100%;
+      max-width: 440px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .player-card {
+      background: var(--panel);
+      border-radius: 12px;
+      padding: 8px 12px;
+      border: 2px solid transparent;
+      font-size: 0.82rem;
+    }
+
+    .player-card.p1.active { border-color: var(--p1); }
+    .player-card.p2.active { border-color: var(--p2); }
+
+    .board-wrap {
+      width: 100%;
+      max-width: 440px;
+      height: 390px;
+      flex: 1 1 auto;
+      min-height: 300px;
+      max-height: 55dvh;
+      background: var(--panel);
+      border-radius: 18px;
+      border: 1px solid #334155;
+      padding: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    svg {
+      display: block;
+      width: 100%;
+      height: 100%;
+      touch-action: manipulation;
+    }
+
+    .board-edge {
+      stroke: var(--line);
+      stroke-width: 4;
+      stroke-linecap: round;
+    }
+
+    .node-hit {
+      cursor: pointer;
+    }
+
+    .node-dot {
+      fill: #cbd5e1;
+      transition: transform 0.15s ease;
+    }
+
+    .node-ring {
+      fill: none;
+      stroke: var(--accent);
+      stroke-width: 3.5;
+      display: none;
+    }
+
+    .node-ring.visible {
+      display: block;
+    }
+
+    .mouse-token {
+      font-size: 26px;
+      text-anchor: middle;
+      dominant-baseline: central;
+      pointer-events: none;
+    }
+
+    .mouse-halo.p1 {
+      fill: rgba(56, 189, 248, 0.25);
+      stroke: var(--p1);
+      stroke-width: 2.5;
+    }
+
+    .mouse-halo.p2 {
+      fill: rgba(251, 113, 133, 0.25);
+      stroke: var(--p2);
+      stroke-width: 2.5;
+    }
+
+    .mouse-halo.selected {
+      stroke: var(--accent);
+      stroke-width: 4;
+    }
+
+    .mouse-halo.removable-opp {
+      fill: rgba(245, 158, 11, 0.35);
+      stroke: var(--warn);
+      stroke-width: 4;
+    }
+
+    .mouse-halo.recallable-own {
+      fill: rgba(167, 139, 250, 0.35);
+      stroke: var(--recall);
+      stroke-width: 4;
+    }
+
+    .action-bar {
+      width: 100%;
+      max-width: 440px;
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+    }
+
+    .action-bar button {
+      flex: 1;
+      padding: 10px 8px;
+      font-size: 0.82rem;
+    }
+
+    .status-box {
+      width: 100%;
+      max-width: 440px;
+      background: var(--panel);
+      border-radius: 14px;
+      padding: 9px 12px;
+      border: 1px solid #334155;
+      text-align: center;
+      font-size: 0.88rem;
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(2, 6, 23, 0.8);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      z-index: 20;
+    }
+
+    .modal-backdrop.open {
+      display: flex;
+    }
+
+    .modal {
+      background: var(--panel);
+      border: 1px solid #475569;
+      border-radius: 16px;
+      max-width: 420px;
+      width: 100%;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      font-size: 0.9rem;
+      line-height: 1.45;
+    }
+
+    .modal h2 {
+      margin: 0;
+      font-size: 1.1rem;
+    }
+
+    .modal ul {
+      margin: 0;
+      padding-left: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      color: #e2e8f0;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🐭 Petites Souris</h1>
+    <div class="top-actions">
+      <button onclick="openRules()">Règles</button>
+      <button class="primary" onclick="resetGame()">Nouvelle partie</button>
+    </div>
+  </header>
+
+  <section class="hud">
+    <div id="card1" class="player-card p1 active">
+      <div><strong>Joueur 1 (Bleu)</strong></div>
+      <div id="info1">Réserve : 4 | Plateau : 0/4</div>
+      <div id="cap1">Retraits adverses : 0 / 3</div>
+    </div>
+    <div id="card2" class="player-card p2">
+      <div><strong>Joueur 2 (Rose)</strong></div>
+      <div id="info2">Réserve : 4 | Plateau : 0/4</div>
+      <div id="cap2">Retraits adverses : 0 / 3</div>
+    </div>
+  </section>
+
+  <main class="board-wrap">
+    <svg id="board" viewBox="0 0 360 500" preserveAspectRatio="xMidYMid meet" aria-label="Plateau du jeu des petites souris">
+      <g id="edges"></g>
+      <g id="nodes"></g>
+      <g id="pieces"></g>
+    </svg>
+  </main>
+
+  <div class="action-bar">
+    <button id="recallBtn" class="recall" onclick="startRecallOwnMode()">↩️ Reprendre ma souris (∞)</button>
+    <button id="removeBtn" class="warn" onclick="startRemoveOppMode()">🗑️ Retirer adverse (0/3)</button>
+    <button id="cancelModeBtn" class="cancel" style="display:none;" onclick="cancelSpecialMode()">Annuler</button>
+  </div>
+
+  <div id="status" class="status-box">Joueur 1 : pose une souris ou déplace-en une.</div>
+
+  <div id="rulesModal" class="modal-backdrop" onclick="closeRules(event)">
+    <div class="modal" onclick="event.stopPropagation()">
+      <h2>Règles du jeu</h2>
+      <ul>
+        <li><strong>4 souris par joueur :</strong> à ton tour, tu peux poser une souris de ta réserve sur un point libre ou déplacer une souris déjà posée vers un point voisin libre (interdit de sauter).</li>
+        <li><strong>Reprendre sa souris (à l'infini) :</strong> à tout moment pendant ton tour, tu peux appuyer sur <em>Reprendre ma souris</em> pour enlever l'une de tes propres souris du plateau et la remettre en réserve.</li>
+        <li><strong>Retirer une souris adverse (3 max) :</strong> à tout moment pendant ton tour, tu peux appuyer sur <em>Retirer adverse</em> pour enlever une souris adverse du plateau (3 fois maximum par partie).</li>
+        <li><strong>Victoire :</strong> aligner tes 4 souris sur une ligne (même non collées, tant qu'aucune souris adverse ne coupe la ligne), former un carré ou un losange de 4 souris fait gagner la partie.</li>
+      </ul>
+      <button class="primary" onclick="closeRules()">Compris</button>
+    </div>
+  </div>
+  <script>
+    const NODES = [
+      { id: 0,  x: 50,  y: 50 },
+      { id: 1,  x: 125, y: 50 },
+      { id: 2,  x: 180, y: 50 },
+      { id: 3,  x: 235, y: 50 },
+      { id: 4,  x: 310, y: 50 },
+
+      { id: 5,  x: 180, y: 150 },
+
+      { id: 6,  x: 50,  y: 250 },
+      { id: 7,  x: 180, y: 250 },
+      { id: 8,  x: 310, y: 250 },
+
+      { id: 9,  x: 180, y: 350 },
+
+      { id: 10, x: 50,  y: 450 },
+      { id: 11, x: 125, y: 450 },
+      { id: 12, x: 180, y: 450 },
+      { id: 13, x: 235, y: 450 },
+      { id: 14, x: 310, y: 450 }
+    ];
+
+    const SEGMENTS = [
+      [0, 1, 2, 3, 4],
+      [10, 11, 12, 13, 14],
+      [0, 6, 10],
+      [4, 8, 14],
+      [2, 5, 7, 9, 12]
+    ];
+
+    const FOUR_MICE_LINES = [
+      [0, 1, 2, 3, 4],
+      [10, 11, 12, 13, 14],
+      [2, 5, 7, 9, 12]
+    ];
+
+    const SQUARES = [
+      [0, 2, 6, 7],
+      [2, 4, 7, 8],
+      [6, 7, 10, 12],
+      [7, 8, 12, 14],
+      [0, 4, 10, 14]
+    ];
+
+    const DIAMONDS = [
+      [2, 6, 8, 12]
+    ];
+
+    const MAX_CAPTURES = 3;
+    const MAX_MICE_ON_BOARD = 4;
+
+    let state = {};
+
+    function buildAdjacency() {
+      const adj = Array.from({ length: NODES.length }, () => new Set());
+      for (const seg of SEGMENTS) {
+        for (let i = 0; i < seg.length - 1; i++) {
+          const a = seg[i];
+          const b = seg[i + 1];
+          adj[a].add(b);
+          adj[b].add(a);
+        }
+      }
+      return adj;
+    }
+
+    const ADJ = buildAdjacency();
+
+    function resetGame() {
+      state = {
+        board: Array(NODES.length).fill(null),
+        turn: 1,
+        capturesUsed: { 1: 0, 2: 0 },
+        selectedNode: null,
+        specialMode: null,
+        winner: null
+      };
+      render();
+      promptCurrentTurn();
+    }
+
+    function openRules() {
+      document.getElementById('rulesModal').classList.add('open');
+    }
+
+    function closeRules(e) {
+      if (!e || e.target.id === 'rulesModal' || e.target.tagName === 'BUTTON') {
+        document.getElementById('rulesModal').classList.remove('open');
+      }
+    }
+
+    function updateStatus(msg) {
+      document.getElementById('status').textContent = msg;
+    }
+
+    function countOnBoard(player) {
+      return state.board.filter(v => v === player).length;
+    }
+
+    function getReserve(player) {
+      return MAX_MICE_ON_BOARD - countOnBoard(player);
+    }
+
+    function checkWin(player) {
+      const opp = player === 1 ? 2 : 1;
+
+      for (const line of FOUR_MICE_LINES) {
+        const ownCount = line.filter(idx => state.board[idx] === player).length;
+        const oppCount = line.filter(idx => state.board[idx] === opp).length;
+        if (ownCount >= 4 && oppCount === 0) {
+          return "ligne de 4 souris";
+        }
+      }
+
+      for (const sq of SQUARES) {
+        if (sq.every(idx => state.board[idx] === player)) {
+          return "carré de 4 souris";
+        }
+      }
+
+      for (const dm of DIAMONDS) {
+        if (dm.every(idx => state.board[idx] === player)) {
+          return "losange de 4 souris";
+        }
+      }
+
+      return null;
+    }
+
+    function canRecallOwn(player) {
+      return countOnBoard(player) > 0;
+    }
+
+    function canRemoveOpp(player) {
+      const opp = player === 1 ? 2 : 1;
+      return state.capturesUsed[player] < MAX_CAPTURES && countOnBoard(opp) > 0;
+    }
+
+    function startRecallOwnMode() {
+      if (state.winner || state.specialMode) return;
+      if (!canRecallOwn(state.turn)) {
+        updateStatus(`Tu n'as aucune souris sur le plateau à reprendre.`);
+        return;
+      }
+      state.specialMode = 'RECALL_OWN';
+      state.selectedNode = null;
+      render();
+      updateStatus(`Joueur ${state.turn} : clique sur l'une de TES souris pour la remettre en réserve.`);
+    }
+
+    function startRemoveOppMode() {
+      if (state.winner || state.specialMode) return;
+      if (!canRemoveOpp(state.turn)) {
+        updateStatus(`Impossible de retirer un pion adverse (limite de ${MAX_CAPTURES} atteinte ou aucun pion adverse).`);
+        return;
+      }
+      state.specialMode = 'REMOVE_OPP';
+      state.selectedNode = null;
+      render();
+      updateStatus(`Joueur ${state.turn} : clique sur une souris ADVERSE à retirer.`);
+    }
+
+    function cancelSpecialMode() {
+      if (!state.specialMode || state.winner) return;
+      state.specialMode = null;
+      render();
+      promptCurrentTurn();
+    }
+
+    function getValidMoves(fromIdx) {
+      return [...ADJ[fromIdx]].filter(toIdx => state.board[toIdx] === null);
+    }
+
+    function promptCurrentTurn() {
+      const reserve = getReserve(state.turn);
+      const onBoard = countOnBoard(state.turn);
+
+      if (onBoard === 0) {
+        updateStatus(`Joueur ${state.turn} : pose une souris (${reserve} en réserve).`);
+      } else if (reserve > 0) {
+        updateStatus(`Joueur ${state.turn} : pose une souris (${reserve} en réserve), déplace-en une ou reprends-en une.`);
+      } else {
+        updateStatus(`Joueur ${state.turn} : déplace une souris, reprends-en une ou retire un pion adverse.`);
+      }
+    }
+
+    function afterActionTurn() {
+      const winReason = checkWin(state.turn);
+      if (winReason) {
+        state.winner = state.turn;
+        state.specialMode = null;
+        render();
+        updateStatus(`🏆 Joueur ${state.turn} gagne par ${winReason} !`);
+        return;
+      }
+
+      state.specialMode = null;
+      state.selectedNode = null;
+      state.turn = state.turn === 1 ? 2 : 1;
+      render();
+      promptCurrentTurn();
+    }
+
+    function handleNodeClick(idx) {
+      if (state.winner) return;
+
+      const current = state.turn;
+      const opp = current === 1 ? 2 : 1;
+
+      if (state.specialMode === 'RECALL_OWN') {
+        if (state.board[idx] === current) {
+          state.board[idx] = null;
+          afterActionTurn();
+        } else {
+          updateStatus(`Clique sur l'une de TES propres souris (ou appuie sur Annuler).`);
+        }
+        return;
+      }
+
+      if (state.specialMode === 'REMOVE_OPP') {
+        if (state.board[idx] === opp) {
+          state.board[idx] = null;
+          state.capturesUsed[current] += 1;
+          afterActionTurn();
+        } else {
+          updateStatus(`Clique sur une souris ADVERSE (ou appuie sur Annuler).`);
+        }
+        return;
+      }
+
+      if (state.selectedNode !== null && idx === state.selectedNode) {
+        state.selectedNode = null;
+        render();
+        promptCurrentTurn();
+        return;
+      }
+
+      if (state.board[idx] === current) {
+        if (getValidMoves(idx).length === 0) {
+          updateStatus(`Cette souris n'a aucun point voisin libre (tu peux aussi utiliser "Reprendre ma souris").`);
+          return;
+        }
+        state.selectedNode = idx;
+        render();
+        updateStatus(`Souris sélectionnée : clique sur un point voisin libre (ou reclique dessus pour annuler).`);
+        return;
+      }
+
+      if (state.selectedNode !== null) {
+        const validMoves = getValidMoves(state.selectedNode);
+        if (validMoves.includes(idx)) {
+          state.board[idx] = current;
+          state.board[state.selectedNode] = null;
+          state.selectedNode = null;
+          afterActionTurn();
+        } else {
+          updateStatus(`Déplacement impossible (choisis un point voisin libre entouré en jaune).`);
+        }
+        return;
+      }
+
+      if (getReserve(current) > 0) {
+        if (state.board[idx] === null) {
+          state.board[idx] = current;
+          afterActionTurn();
+        } else {
+          updateStatus(`Ce point est déjà occupé.`);
+        }
+        return;
+      }
+
+      updateStatus(`Sélectionne une souris à déplacer, ou utilise les boutons ci-dessus.`);
+    }
+
+    function render() {
+      const edgesEl = document.getElementById('edges');
+      const nodesEl = document.getElementById('nodes');
+      const piecesEl = document.getElementById('pieces');
+
+      edgesEl.innerHTML = '';
+      nodesEl.innerHTML = '';
+      piecesEl.innerHTML = '';
+
+      for (const seg of SEGMENTS) {
+        for (let i = 0; i < seg.length - 1; i++) {
+          const a = NODES[seg[i]];
+          const b = NODES[seg[i + 1]];
+          const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+          line.setAttribute('x1', a.x);
+          line.setAttribute('y1', a.y);
+          line.setAttribute('x2', b.x);
+          line.setAttribute('y2', b.y);
+          line.setAttribute('class', 'board-edge');
+          edgesEl.appendChild(line);
+        }
+      }
+
+      const validTargets = state.selectedNode !== null ? getValidMoves(state.selectedNode) : [];
+      const opp = state.turn === 1 ? 2 : 1;
+
+      NODES.forEach((n, idx) => {
+        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        g.setAttribute('class', 'node-hit');
+        g.addEventListener('click', () => handleNodeClick(idx));
+
+        const ring = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        ring.setAttribute('cx', n.x);
+        ring.setAttribute('cy', n.y);
+        ring.setAttribute('r', 17);
+        ring.setAttribute('class', validTargets.includes(idx) ? 'node-ring visible' : 'node-ring');
+
+        const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        dot.setAttribute('cx', n.x);
+        dot.setAttribute('cy', n.y);
+        dot.setAttribute('r', 7);
+        dot.setAttribute('class', 'node-dot');
+
+        const hitArea = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        hitArea.setAttribute('cx', n.x);
+        hitArea.setAttribute('cy', n.y);
+        hitArea.setAttribute('r', 24);
+        hitArea.setAttribute('fill', 'transparent');
+
+        g.appendChild(ring);
+        g.appendChild(dot);
+        g.appendChild(hitArea);
+        nodesEl.appendChild(g);
+
+        const owner = state.board[idx];
+        if (owner) {
+          const pg = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+          pg.style.pointerEvents = 'none';
+
+          const isRemovableOpp = state.specialMode === 'REMOVE_OPP' && owner === opp;
+          const isRecallableOwn = state.specialMode === 'RECALL_OWN' && owner === state.turn;
+
+          const halo = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+          halo.setAttribute('cx', n.x);
+          halo.setAttribute('cy', n.y);
+          halo.setAttribute('r', 18);
+          halo.setAttribute(
+            'class',
+            `mouse-halo p${owner} ${state.selectedNode === idx ? 'selected' : ''} ${isRemovableOpp ? 'removable-opp' : ''} ${isRecallableOwn ? 'recallable-own' : ''}`
+          );
+
+          const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+          text.setAttribute('x', n.x);
+          text.setAttribute('y', n.y + 1);
+          text.setAttribute('class', 'mouse-token');
+          text.textContent = '🐭';
+
+          pg.appendChild(halo);
+          pg.appendChild(text);
+          piecesEl.appendChild(pg);
+        }
+      });
+
+      document.getElementById('card1').classList.toggle('active', state.turn === 1 && !state.winner);
+      document.getElementById('card2').classList.toggle('active', state.turn === 2 && !state.winner);
+
+      document.getElementById('info1').textContent = `Réserve : ${getReserve(1)} | Plateau : ${countOnBoard(1)}/4`;
+      document.getElementById('info2').textContent = `Réserve : ${getReserve(2)} | Plateau : ${countOnBoard(2)}/4`;
+
+      document.getElementById('cap1').textContent = `Retraits adverses : ${state.capturesUsed[1]} / ${MAX_CAPTURES}`;
+      document.getElementById('cap2').textContent = `Retraits adverses : ${state.capturesUsed[2]} / ${MAX_CAPTURES}`;
+
+      const recallBtn = document.getElementById('recallBtn');
+      const removeBtn = document.getElementById('removeBtn');
+      const cancelBtn = document.getElementById('cancelModeBtn');
+
+      const used = state.capturesUsed[state.turn];
+      removeBtn.textContent = `🗑️ Retirer adverse (${used}/${MAX_CAPTURES})`;
+
+      const inSpecial = Boolean(state.specialMode);
+      recallBtn.style.display = inSpecial ? 'none' : 'block';
+      removeBtn.style.display = inSpecial ? 'none' : 'block';
+      cancelBtn.style.display = inSpecial && !state.winner ? 'block' : 'none';
+
+      recallBtn.disabled = Boolean(state.winner) || !canRecallOwn(state.turn);
+      removeBtn.disabled = Boolean(state.winner) || !canRemoveOpp(state.turn);
+    }
+
+    resetGame();
+  </script>
+</body>
+</html>

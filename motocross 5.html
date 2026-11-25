@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Motocross Backflip Challenge HD</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #0f172a;
+            color: #ffffff;
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #gameCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            display: block;
+            background-color: #38bdf8;
+            z-index: 1;
+        }
+
+        .hud-container {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            right: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .hud-box {
+            background: rgba(15, 23, 42, 0.85);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 8px 12px;
+            border-radius: 14px;
+            font-size: 11px;
+            font-weight: 700;
+            display: flex;
+            gap: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+        }
+
+        .hud-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .hud-label {
+            font-size: 8px;
+            color: #94a3b8;
+            text-transform: uppercase;
+        }
+        .hud-val {
+            color: #38bdf8;
+            font-size: 13px;
+            font-family: monospace;
+        }
+
+        #stuntBanner {
+            position: absolute;
+            top: 22%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.8);
+            opacity: 0;
+            transition: all 0.25s ease;
+            pointer-events: none;
+            z-index: 20;
+            text-align: center;
+        }
+        #stuntBanner.show {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1.1);
+        }
+        .stunt-title {
+            font-size: 28px;
+            font-weight: 900;
+            font-style: italic;
+            color: #facc15;
+            text-shadow: 0 4px 12px rgba(0, 0, 0, 0.8);
+            white-space: nowrap;
+        }
+        .stunt-sub {
+            font-size: 15px;
+            font-weight: 800;
+            color: #4ade80;
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+        }
+
+        .controls-container {
+            position: absolute;
+            bottom: 16px;
+            left: 12px;
+            right: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .control-group {
+            display: flex;
+            gap: 10px;
+            pointer-events: auto;
+        }
+
+        .btn-touch {
+            background: rgba(15, 23, 42, 0.8);
+            border: 2px solid rgba(255, 255, 255, 0.25);
+            color: #ffffff;
+            width: 58px;
+            height: 58px;
+            border-radius: 16px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-weight: 900;
+            font-size: 16px;
+            box-shadow: 0 6px 16px rgba(0,0,0,0.4);
+        }
+        .btn-touch:active, .btn-touch.active {
+            transform: scale(0.92);
+            background: rgba(56, 189, 248, 0.6);
+            border-color: #38bdf8;
+        }
+        .btn-gas {
+            width: 72px;
+            height: 72px;
+            background: rgba(34, 197, 94, 0.85);
+            border-color: #4ade80;
+            font-size: 20px;
+        }
+        .btn-sub {
+            font-size: 8px;
+            font-weight: 700;
+            margin-top: 2px;
+            opacity: 0.8;
+        }
+
+        .modal {
+            position: absolute;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 30;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+        }
+        .modal.show {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .modal-card {
+            background: #1e293b;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            padding: 18px;
+            border-radius: 20px;
+            text-align: center;
+            max-width: 340px;
+            width: 92%;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        .modal-icon { font-size: 36px; margin-bottom: 2px; }
+        .modal-title { font-size: 20px; font-weight: 900; margin-bottom: 4px; }
+        .modal-text { font-size: 11px; color: #94a3b8; margin-bottom: 10px; }
+
+        .name-input-group {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        .name-input {
+            flex: 1;
+            background: #0f172a;
+            border: 1px solid #38bdf8;
+            border-radius: 10px;
+            padding: 8px 12px;
+            color: #fff;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .leaderboard {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 12px;
+            font-size: 10px;
+            text-align: left;
+        }
+        .leaderboard th {
+            color: #64748b;
+            text-transform: uppercase;
+            padding: 4px 6px;
+            border-bottom: 1px solid #334155;
+            font-size: 8px;
+        }
+        .leaderboard td {
+            padding: 4px 6px;
+            border-bottom: 1px solid #1e293b;
+        }
+        .leaderboard tr.highlight {
+            background: rgba(56, 189, 248, 0.2);
+            color: #38bdf8;
+            font-weight: bold;
+        }
+
+        .btn-action {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #38bdf8, #2563eb);
+            border: none;
+            border-radius: 12px;
+            color: #fff;
+            font-weight: 900;
+            font-size: 14px;
+            cursor: pointer;
+            box-shadow: 0 4px 14px rgba(56, 189, 248, 0.4);
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <div class="hud-container">
+        <div class="hud-box">
+            <div class="hud-item">
+                <span class="hud-label">Vies</span>
+                <span id="livesVal" class="hud-val" style="color:#ef4444">❤️❤️❤️</span>
+            </div>
+            <div class="hud-item">
+                <span class="hud-label">Niveau</span>
+                <span id="levelVal" class="hud-val" style="color:#f97316">1</span>
+            </div>
+            <div class="hud-item">
+                <span class="hud-label">Score</span>
+                <span id="scoreVal" class="hud-val" style="color:#facc15">0</span>
+            </div>
+            <div class="hud-item">
+                <span class="hud-label">Flips</span>
+                <span id="flipsVal" class="hud-val" style="color:#4ade80">0</span>
+            </div>
+        </div>
+        <button id="restartTop" class="hud-box" style="pointer-events:auto; cursor:pointer;">🔄</button>
+    </div>
+
+    <div id="stuntBanner">
+        <div id="stuntTitle" class="stunt-title">+360 BACKFLIP!</div>
+        <div id="stuntSub" class="stunt-sub">+500 PTS</div>
+    </div>
+
+    <div class="controls-container">
+        <div class="control-group">
+            <div id="btnLeanBack" class="btn-touch"><span>↺</span><span class="btn-sub">CABRER</span></div>
+            <div id="btnLeanFwd" class="btn-touch"><span>↻</span><span class="btn-sub">PIQUER</span></div>
+        </div>
+        <div class="control-group">
+            <div id="btnBrake" class="btn-touch" style="border-color:#f43f5e;"><span style="color:#f43f5e">STOP</span><span class="btn-sub">FREIN</span></div>
+            <div id="btnGas" class="btn-touch btn-gas"><span>GO!</span><span class="btn-sub">GAZ</span></div>
+        </div>
+    </div>
+
+    <div id="modal" class="modal">
+        <div class="modal-card">
+            <div id="modalIcon" class="modal-icon">💥</div>
+            <div id="modalTitle" class="modal-title">CRASH !</div>
+            <div id="modalText" class="modal-text">Il te reste des vies !</div>
+
+            <div id="nameInputSection" style="display:none;">
+                <div style="font-size: 11px; color: #facc15; font-weight: bold; margin-bottom: 4px;">🏆 Nouveau Top 10 ! Entre ton nom :</div>
+                <div class="name-input-group">
+                    <input type="text" id="playerName" class="name-input" maxlength="12" placeholder="Pilote">
+                    <button id="saveScoreBtn" class="btn-action" style="width: auto; padding: 8px 14px;">OK</button>
+                </div>
+            </div>
+
+            <table class="leaderboard">
+                <thead>
+                    <tr><th>#</th><th>Nom</th><th>Niv</th><th>Score</th><th>Flips</th></tr>
+                </thead>
+                <tbody id="leaderboardBody"></tbody>
+            </table>
+
+            <button id="modalBtn" class="btn-action">CONTINUER</button>
+        </div>
+    </div>
+    <script>
+        (function() {
+            const canvas = document.getElementById('gameCanvas');
+            const ctx = canvas.getContext('2d');
+
+            let width = window.innerWidth;
+            let height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+
+            window.addEventListener('resize', () => {
+                width = window.innerWidth;
+                height = window.innerHeight;
+                canvas.width = width;
+                canvas.height = height;
+            });
+
+            const keys = { gas: false, brake: false, leanBack: false, leanFwd: false };
+
+            window.addEventListener('keydown', (e) => {
+                if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.gas = true;
+                if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.brake = true;
+                if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') keys.leanBack = true;
+                if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') keys.leanFwd = true;
+            });
+
+            window.addEventListener('keyup', (e) => {
+                if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.gas = false;
+                if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.brake = false;
+                if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') keys.leanBack = false;
+                if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') keys.leanFwd = false;
+            });
+
+            function bindTouch(id, keyName) {
+                const el = document.getElementById(id);
+                if (!el) return;
+                const start = (e) => { e.preventDefault(); keys[keyName] = true; el.classList.add('active'); };
+                const end = (e) => { e.preventDefault(); keys[keyName] = false; el.classList.remove('active'); };
+                el.addEventListener('touchstart', start, {passive: false});
+                el.addEventListener('touchend', end, {passive: false});
+                el.addEventListener('mousedown', start);
+                el.addEventListener('mouseup', end);
+                el.addEventListener('mouseleave', end);
+            }
+
+            bindTouch('btnGas', 'gas');
+            bindTouch('btnBrake', 'brake');
+            bindTouch('btnLeanBack', 'leanBack');
+            bindTouch('btnLeanFwd', 'leanFwd');
+
+            let top10Scores = [];
+            let pendingRunData = null;
+            let gameState = 'PLAYING';
+            let score = 0;
+            let totalFlips = 0;
+            let lives = 3;
+            let currentLevel = 1;
+            let maxLevels = 3;
+
+            let airRotation = 0;
+            let particles = [];
+            let stuntTimer = null;
+
+            const camera = { x: 0, y: 0, zoom: 1.0 };
+            const terrainStep = 20;
+            let terrainPoints = [];
+            let finishX = 0;
+
+            function generateTerrain() {
+                terrainPoints = [];
+                const totalSteps = 700 + currentLevel * 150;
+                const baseGroundY = height * 0.65;
+
+                for (let i = 0; i < totalSteps; i++) {
+                    const x = i * terrainStep;
+                    let y = baseGroundY;
+
+                    if (i < 25 || i > totalSteps - 40) {
+                        y = baseGroundY;
+                    } else {
+                        const section = i % 50;
+                        const heightMultiplier = 1.0 + (currentLevel - 1) * 0.4;
+
+                        if (section > 12 && section < 24) {
+                            const rampT = (section - 12) / 12;
+                            y -= Math.sin(rampT * Math.PI * 0.5) * (230 * heightMultiplier);
+                        } else if (section >= 24 && section < 32) {
+                            const dropT = (section - 24) / 8;
+                            y += dropT * (110 * heightMultiplier);
+                        } else {
+                            y = baseGroundY + Math.sin(i * 0.05) * (45 * heightMultiplier) + Math.cos(i * 0.02) * (70 * heightMultiplier);
+                        }
+                    }
+                    terrainPoints.push({ x: x, y: y });
+                }
+
+                for (let pass = 0; pass < 2; pass++) {
+                    for (let i = 2; i < terrainPoints.length - 2; i++) {
+                        terrainPoints[i].y = (
+                            terrainPoints[i-2].y + terrainPoints[i-1].y +
+                            terrainPoints[i].y +
+                            terrainPoints[i+1].y + terrainPoints[i+2].y
+                        ) / 5;
+                    }
+                }
+                finishX = (totalSteps - 40) * terrainStep;
+            }
+
+            function getTerrainY(x) {
+                if (x <= 0) return terrainPoints[0].y;
+                const idx = Math.floor(x / terrainStep);
+                if (idx >= terrainPoints.length - 1) return terrainPoints[terrainPoints.length - 1].y;
+                const p1 = terrainPoints[idx];
+                const p2 = terrainPoints[idx + 1];
+                const t = (x - p1.x) / terrainStep;
+                return p1.y + t * (p2.y - p1.y);
+            }
+
+            function getTerrainNormal(x) {
+                const d = 6;
+                const y1 = getTerrainY(x - d);
+                const y2 = getTerrainY(x + d);
+                const dx = d * 2;
+                const dy = y2 - y1;
+                const len = Math.sqrt(dx * dx + dy * dy);
+                return { x: -dy / len, y: dx / len, angle: Math.atan2(dy, dx) };
+            }
+
+            function showStunt(title, pts) {
+                const banner = document.getElementById('stuntBanner');
+                document.getElementById('stuntTitle').innerText = title;
+                document.getElementById('stuntSub').innerText = `+${pts} PTS`;
+                banner.classList.add('show');
+                if (stuntTimer) clearTimeout(stuntTimer);
+                stuntTimer = setTimeout(() => { banner.classList.remove('show'); }, 1400);
+            }
+            class Bike {
+                constructor() { this.reset(); }
+
+                reset() {
+                    this.x = 150;
+                    this.y = terrainPoints.length > 0 ? terrainPoints[0].y - 80 : 250;
+                    this.vx = 0;
+                    this.vy = 0;
+                    this.angle = 0;
+                    this.angularVelocity = 0;
+                    this.wheelRadius = 15;
+                    this.rearWheel = { x: -24, y: 16, grounded: false };
+                    this.frontWheel = { x: 24, y: 16, grounded: false };
+                    this.head = { x: -2, y: -28, radius: 9 };
+                    this.isGrounded = false;
+                    airRotation = 0;
+                    this.flipsCountedInAir = 0;
+                }
+
+                update() {
+                    if (gameState !== 'PLAYING') return;
+
+                    this.vy += 0.45;
+                    const torque = this.isGrounded ? 0.003 : 0.013;
+                    if (keys.leanBack) this.angularVelocity -= torque;
+                    if (keys.leanFwd) this.angularVelocity += torque;
+
+                    this.angularVelocity *= 0.88;
+                    this.angle += this.angularVelocity;
+
+                    const cos = Math.cos(this.angle);
+                    const sin = Math.sin(this.angle);
+
+                    const rwWorld = {
+                        x: this.x + (this.rearWheel.x * cos - this.rearWheel.y * sin),
+                        y: this.y + (this.rearWheel.x * sin + this.rearWheel.y * cos)
+                    };
+                    const fwWorld = {
+                        x: this.x + (this.frontWheel.x * cos - this.frontWheel.y * sin),
+                        y: this.y + (this.frontWheel.x * sin + this.frontWheel.y * cos)
+                    };
+
+                    const rGroundY = getTerrainY(rwWorld.x);
+                    const fGroundY = getTerrainY(fwWorld.x);
+
+                    this.rearWheel.grounded = (rwWorld.y + this.wheelRadius >= rGroundY);
+                    this.frontWheel.grounded = (fwWorld.y + this.wheelRadius >= fGroundY);
+                    
+                    this.isGrounded = this.rearWheel.grounded || this.frontWheel.grounded;
+
+                    // --- VALIDATION TRÈS PRECOCE (Seuil abaissé à 3.8 radians = ~220°) ---
+                    if (!this.isGrounded) {
+                        airRotation += this.angularVelocity;
+                        
+                        const absRot = Math.abs(airRotation);
+                        // Validation instantanée dès que la moto dépasse les 220° en l'air
+                        const currentFlips = Math.floor((absRot + 1.2) / 5.0);
+
+                        if (currentFlips > this.flipsCountedInAir) {
+                            const newFlips = currentFlips - this.flipsCountedInAir;
+                            this.flipsCountedInAir = currentFlips;
+                            totalFlips += newFlips;
+
+                            const isBackflip = airRotation < 0;
+                            let pts = isBackflip ? 500 : 600;
+                            let title = isBackflip ? "360° BACKFLIP!" : "360° FRONTFLIP!";
+
+                            if (currentFlips === 2) {
+                                pts = isBackflip ? 1500 : 1800;
+                                title = isBackflip ? "DOUBLE BACKFLIP!! 🔥" : "DOUBLE FRONTFLIP!! 🔥";
+                            } else if (currentFlips >= 3) {
+                                pts = isBackflip ? 3500 : 4000;
+                                title = isBackflip ? "TRIPLE BACKFLIP!!! ⚡" : "TRIPLE FRONTFLIP!!! ⚡";
+                            }
+
+                            score += pts;
+                            showStunt(title, pts);
+                            document.getElementById('flipsVal').innerText = totalFlips;
+                            document.getElementById('scoreVal').innerText = score;
+                        }
+                    } else {
+                        airRotation = 0;
+                        this.flipsCountedInAir = 0;
+                    }
+
+                    if (keys.gas) {
+                        if (this.rearWheel.grounded) {
+                            this.vx += Math.cos(this.angle) * 0.78;
+                            this.vy += Math.sin(this.angle) * 0.78;
+                            if (Math.random() < 0.5) spawnDust(rwWorld.x, rGroundY, 2);
+                        } else {
+                            this.angularVelocity -= 0.003;
+                        }
+                    }
+
+                    if (keys.brake && this.isGrounded) {
+                        this.vx *= 0.88;
+                    }
+
+                    [ { w: rwWorld, g: this.rearWheel.grounded, ty: rGroundY },
+                      { w: fwWorld, g: this.frontWheel.grounded, ty: fGroundY } ].forEach(wheel => {
+                        if (wheel.g) {
+                            const depth = (wheel.w.y + this.wheelRadius) - wheel.ty;
+                            if (depth > 0) {
+                                const norm = getTerrainNormal(wheel.w.x);
+                                this.y -= depth * 0.6;
+                                this.vy -= depth * 0.15;
+                                const dot = this.vx * norm.x + this.vy * norm.y;
+                                this.vx -= norm.x * dot * 0.4;
+                                this.vy -= norm.y * dot * 0.4;
+
+                                let diff = norm.angle - this.angle;
+                                while (diff < -Math.PI) diff += Math.PI * 2;
+                                while (diff > Math.PI) diff -= Math.PI * 2;
+                                this.angularVelocity += diff * 0.04;
+                            }
+                        }
+                    });
+
+                    this.vx *= 0.985;
+                    this.x += this.vx;
+                    this.y += this.vy;
+
+                    const headWorld = {
+                        x: this.x + (this.head.x * cos - this.head.y * sin),
+                        y: this.y + (this.head.x * sin + this.head.y * cos)
+                    };
+                    if (headWorld.y + this.head.radius >= getTerrainY(headWorld.x)) {
+                        triggerCrash();
+                    }
+
+                    if (this.x >= finishX) {
+                        triggerLevelComplete();
+                    }
+                }
+
+                draw() {
+                    ctx.save();
+                    ctx.translate(this.x, this.y);
+                    ctx.rotate(this.angle);
+
+                    ctx.strokeStyle = '#64748b';
+                    ctx.lineWidth = 4;
+                    ctx.beginPath();
+                    ctx.moveTo(-24, 4); ctx.lineTo(this.rearWheel.x, this.rearWheel.y);
+                    ctx.moveTo(14, -6); ctx.lineTo(this.frontWheel.x, this.frontWheel.y);
+                    ctx.stroke();
+
+                    ctx.strokeStyle = '#cbd5e1';
+                    ctx.lineWidth = 3;
+                    ctx.beginPath(); ctx.moveTo(10, -18); ctx.lineTo(this.frontWheel.x, this.frontWheel.y); ctx.stroke();
+
+                    [this.rearWheel, this.frontWheel].forEach(w => {
+                        ctx.save();
+                        ctx.translate(w.x, w.y);
+                        ctx.fillStyle = '#0f172a';
+                        ctx.beginPath(); ctx.arc(0, 0, this.wheelRadius, 0, Math.PI * 2); ctx.fill();
+                        ctx.fillStyle = '#94a3b8';
+                        ctx.beginPath(); ctx.arc(0, 0, this.wheelRadius - 4, 0, Math.PI * 2); ctx.fill();
+                        
+                        ctx.strokeStyle = '#475569';
+                        ctx.lineWidth = 1.5;
+                        const rot = (this.x / 8);
+                        ctx.beginPath();
+                        ctx.moveTo(Math.cos(rot) * 10, Math.sin(rot) * 10);
+                        ctx.lineTo(-Math.cos(rot) * 10, -Math.sin(rot) * 10);
+                        ctx.stroke();
+
+                        ctx.fillStyle = '#0284c7';
+                        ctx.beginPath(); ctx.arc(0, 0, 4, 0, Math.PI * 2); ctx.fill();
+                        ctx.restore();
+                    });
+
+                    ctx.fillStyle = '#475569';
+                    ctx.fillRect(-10, -4, 14, 12);
+                    ctx.strokeStyle = '#e2e8f0';
+                    ctx.lineWidth = 3;
+                    ctx.beginPath(); ctx.moveTo(-8, 4); ctx.lineTo(-20, -2); ctx.stroke();
+
+                    ctx.fillStyle = '#dc2626';
+                    ctx.beginPath();
+                    ctx.moveTo(-26, -6); ctx.lineTo(-10, -18); ctx.lineTo(12, -18); ctx.lineTo(20, -8); ctx.lineTo(6, 6);
+                    ctx.closePath(); ctx.fill();
+
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(10, -22, 10, 10);
+                    ctx.fillStyle = '#000000';
+                    ctx.font = 'bold 8px sans-serif';
+                    ctx.fillText('1', 13, -14);
+
+                    ctx.strokeStyle = '#1d4ed8';
+                    ctx.lineWidth = 6;
+                    ctx.beginPath(); ctx.moveTo(-10, -12); ctx.lineTo(-2, -2); ctx.lineTo(4, -8); ctx.stroke();
+
+                    ctx.fillStyle = '#0f172a';
+                    ctx.fillRect(2, -6, 6, 8);
+
+                    ctx.strokeStyle = '#f59e0b';
+                    ctx.lineWidth = 9;
+                    ctx.beginPath(); ctx.moveTo(-10, -14); ctx.lineTo(-2, -28); ctx.stroke();
+
+                    ctx.strokeStyle = '#f59e0b';
+                    ctx.lineWidth = 5;
+                    ctx.beginPath(); ctx.moveTo(-4, -26); ctx.lineTo(12, -24); ctx.stroke();
+
+                    ctx.fillStyle = '#facc15';
+                    ctx.beginPath(); ctx.arc(this.head.x, this.head.y, this.head.radius, 0, Math.PI * 2); ctx.fill();
+
+                    ctx.fillStyle = '#0284c7';
+                    ctx.beginPath(); ctx.arc(this.head.x + 3, this.head.y - 1, 5, -Math.PI*0.3, Math.PI*0.3); ctx.fill();
+
+                    ctx.restore();
+                }
+            }
+
+            const bike = new Bike();
+
+            function spawnDust(x, y, count = 3) {
+                for (let i = 0; i < count; i++) {
+                    particles.push({
+                        x: x, y: y,
+                        vx: -bike.vx * 0.3 + (Math.random() - 0.5) * 3,
+                        vy: -Math.random() * 3 - 0.5,
+                        size: Math.random() * 5 + 2,
+                        alpha: 0.8,
+                        color: '#d97706'
+                    });
+                }
+            }
+
+            function updateParticles() {
+                for (let i = particles.length - 1; i >= 0; i--) {
+                    const p = particles[i];
+                    p.x += p.vx; p.y += p.vy; p.alpha -= 0.03;
+                    if (p.alpha <= 0) particles.splice(i, 1);
+                }
+            }
+
+            function drawParticles() {
+                ctx.save();
+                for (let p of particles) {
+                    ctx.fillStyle = p.color;
+                    ctx.globalAlpha = Math.max(0, p.alpha);
+                    ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+                }
+                ctx.restore();
+            }
+            function triggerCrash() {
+                if (gameState !== 'PLAYING') return;
+                lives--;
+                updateHUD();
+                if (lives > 0) {
+                    gameState = 'RESPAWNING';
+                    document.getElementById('modalIcon').innerText = '💥';
+                    document.getElementById('modalTitle').innerText = 'CRASH !';
+                    document.getElementById('modalText').innerText = `Il te reste ${lives} vie(s).`;
+                    document.getElementById('nameInputSection').style.display = 'none';
+                    document.getElementById('modalBtn').innerText = 'REPARTIR';
+                    document.getElementById('modal').classList.add('show');
+                } else {
+                    endFullGame(false);
+                }
+            }
+
+            function triggerLevelComplete() {
+                if (gameState !== 'PLAYING') return;
+                score += 1000 * currentLevel;
+                if (currentLevel < maxLevels) {
+                    gameState = 'LEVEL_WON';
+                    document.getElementById('modalIcon').innerText = '🏁';
+                    document.getElementById('modalTitle').innerText = `NIVEAU ${currentLevel} TERMINÉ !`;
+                    document.getElementById('modalText').innerText = `Score : ${score} PTS. Prépare-toi pour la suite !`;
+                    document.getElementById('nameInputSection').style.display = 'none';
+                    document.getElementById('modalBtn').innerText = 'NIVEAU SUIVANT';
+                    document.getElementById('modal').classList.add('show');
+                } else {
+                    endFullGame(true);
+                }
+            }
+
+            function endFullGame(isWin) {
+                gameState = isWin ? 'WON' : 'GAME_OVER';
+                if (isWin) score += 2500;
+                pendingRunData = { score: score, flips: totalFlips, level: currentLevel, name: 'Pilote', id: Math.random() };
+                const qualifies = top10Scores.length < 10 || score > top10Scores[top10Scores.length - 1].score;
+                if (qualifies) {
+                    document.getElementById('nameInputSection').style.display = 'block';
+                } else {
+                    document.getElementById('nameInputSection').style.display = 'none';
+                    commitScore(pendingRunData);
+                }
+                document.getElementById('modalIcon').innerText = isWin ? '🏆' : '💀';
+                document.getElementById('modalTitle').innerText = isWin ? 'VICTOIRE FINALE !' : 'GAME OVER';
+                document.getElementById('modalText').innerText = isWin ? `Score final : ${score} PTS !` : `Plus de vies. Score : ${score} PTS`;
+                document.getElementById('modalBtn').innerText = 'NOUVELLE PARTIE';
+                document.getElementById('modal').classList.add('show');
+            }
+
+            function commitScore(runData, customName) {
+                if (customName) runData.name = customName.trim() || 'Pilote';
+                top10Scores.push(runData);
+                top10Scores.sort((a, b) => b.score - a.score);
+                top10Scores = top10Scores.slice(0, 10);
+                renderLeaderboard(runData.id);
+            }
+
+            document.getElementById('saveScoreBtn').addEventListener('click', () => {
+                const nameInput = document.getElementById('playerName').value;
+                if (pendingRunData) {
+                    commitScore(pendingRunData, nameInput);
+                    pendingRunData = null;
+                }
+                document.getElementById('nameInputSection').style.display = 'none';
+            });
+
+            function renderLeaderboard(highlightId) {
+                const tbody = document.getElementById('leaderboardBody');
+                tbody.innerHTML = '';
+                top10Scores.forEach((item, index) => {
+                    const tr = document.createElement('tr');
+                    if (item.id === highlightId) tr.classList.add('highlight');
+                    tr.innerHTML = `<td>#${index + 1}</td><td>${item.name}</td><td>Niv ${item.level}</td><td style="color:#facc15; font-weight:bold;">${item.score}</td><td>${item.flips}</td>`;
+                    tbody.appendChild(tr);
+                });
+            }
+
+            function updateHUD() {
+                document.getElementById('livesVal').innerText = '❤️'.repeat(Math.max(0, lives));
+                document.getElementById('levelVal').innerText = currentLevel;
+                document.getElementById('scoreVal').innerText = score;
+                document.getElementById('flipsVal').innerText = totalFlips;
+            }
+
+            function handleModalAction() {
+                const modal = document.getElementById('modal');
+                modal.classList.remove('show');
+                if (gameState === 'RESPAWNING') {
+                    gameState = 'PLAYING';
+                    bike.reset();
+                } else if (gameState === 'LEVEL_WON') {
+                    currentLevel++;
+                    generateTerrain();
+                    gameState = 'PLAYING';
+                    bike.reset();
+                    updateHUD();
+                } else {
+                    lives = 3; score = 0; totalFlips = 0; currentLevel = 1;
+                    generateTerrain(); gameState = 'PLAYING'; bike.reset(); updateHUD();
+                }
+            }
+
+            document.getElementById('modalBtn').addEventListener('click', handleModalAction);
+            document.getElementById('restartTop').addEventListener('click', () => {
+                lives = 3; score = 0; totalFlips = 0; currentLevel = 1;
+                generateTerrain(); gameState = 'PLAYING'; bike.reset(); updateHUD();
+            });
+
+            function drawScenery() {
+                const grad = ctx.createLinearGradient(0, 0, 0, height);
+                grad.addColorStop(0, currentLevel === 1 ? '#0284c7' : '#7c2d12');
+                grad.addColorStop(1, currentLevel === 1 ? '#bae6fd' : '#ffedd5');
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, width, height);
+
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+                ctx.beginPath(); ctx.arc(width * 0.85, 90, 40, 0, Math.PI * 2); ctx.fill();
+
+                ctx.fillStyle = 'rgba(56, 189, 248, 0.4)';
+                ctx.beginPath();
+                ctx.moveTo(0, height);
+                for (let i = 0; i <= width; i += 60) {
+                    ctx.lineTo(i, (height * 0.55) + Math.sin((i + camera.x * 0.08) * 0.01) * 70);
+                }
+                ctx.lineTo(width, height);
+                ctx.closePath(); ctx.fill();
+            }
+
+            function drawTerrain() {
+                ctx.save();
+                ctx.fillStyle = currentLevel === 1 ? '#78350f' : '#9a3412';
+                ctx.beginPath();
+                ctx.moveTo(terrainPoints[0].x, height * 3);
+                for (let p of terrainPoints) ctx.lineTo(p.x, p.y);
+                ctx.lineTo(terrainPoints[terrainPoints.length - 1].x, height * 3);
+                ctx.closePath(); ctx.fill();
+
+                ctx.strokeStyle = '#22c55e';
+                ctx.lineWidth = 10;
+                ctx.beginPath();
+                for (let i = 0; i < terrainPoints.length; i++) {
+                    const p = terrainPoints[i];
+                    if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+                }
+                ctx.stroke();
+
+                ctx.save();
+                ctx.translate(finishX, getTerrainY(finishX));
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(-3, -90, 6, 90);
+                for (let r = 0; r < 4; r++) {
+                    for (let c = 0; c < 5; c++) {
+                        ctx.fillStyle = (r + c) % 2 === 0 ? '#000' : '#fff';
+                        ctx.fillRect(c * 8, -90 + r * 8, 8, 8);
+                    }
+                }
+                ctx.restore();
+                ctx.restore();
+            }
+
+            generateTerrain();
+            updateHUD();
+
+            function animate() {
+                bike.update();
+                updateParticles();
+
+                const targetZoom = Math.max(0.65, 1.0 - Math.abs(bike.vx) * 0.01);
+                camera.zoom += (targetZoom - camera.zoom) * 0.05;
+                camera.x += (bike.x - (width / camera.zoom) * 0.35 - camera.x) * 0.1;
+                camera.y += (bike.y - (height / camera.zoom) * 0.5 - camera.y) * 0.1;
+
+                ctx.clearRect(0, 0, width, height);
+                drawScenery();
+
+                ctx.save();
+                ctx.scale(camera.zoom, camera.zoom);
+                ctx.translate(-camera.x, -camera.y);
+
+                drawTerrain();
+                drawParticles();
+                bike.draw();
+
+                ctx.restore();
+                requestAnimationFrame(animate);
+            }
+
+            animate();
+        })();
+    </script>
+</body>
+</html>

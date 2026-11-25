@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Jeu d'Échecs</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .cell-light { background-color: #f0d9b5; }
+        .cell-dark { background-color: #b58863; }
+        .cell-selected { background-color: #7b61ff !important; }
+        .cell-highlight { position: relative; }
+        .cell-highlight::after {
+            content: '';
+            position: absolute;
+            width: 30%;
+            height: 30%;
+            background-color: rgba(16, 185, 129, 0.7);
+            border-radius: 50%;
+        }
+        .piece {
+            user-select: none;
+            filter: drop-shadow(0 2px 3px rgba(0,0,0,0.3));
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-white min-h-[100dvh] flex flex-col items-center justify-center p-3 select-none">
+
+    <div class="max-w-md w-full bg-slate-800 p-4 sm:p-6 rounded-3xl shadow-2xl border border-slate-700 text-center flex flex-col items-center">
+        <h1 class="text-2xl sm:text-3xl font-black mb-3 text-indigo-400">Jeu d'Échecs ♟️</h1>
+        
+        <!-- Mode selector -->
+        <div class="flex bg-slate-700/60 p-1 rounded-xl mb-4 w-full">
+            <button id="btn-pvp" onclick="setMode('pvp')" class="flex-1 py-2 rounded-lg font-bold text-xs sm:text-sm transition-all bg-indigo-600 text-white">
+                👥 2 Joueurs
+            </button>
+            <button id="btn-ai" onclick="setMode('ai')" class="flex-1 py-2 rounded-lg font-bold text-xs sm:text-sm transition-all text-slate-300 hover:text-white">
+                🤖 Contre IA
+            </button>
+        </div>
+
+        <!-- Status -->
+        <div id="status" class="mb-4 text-sm sm:text-base font-bold bg-slate-700/50 py-2 px-4 rounded-xl text-emerald-400 w-full">
+            Tour des Blancs ♔
+        </div>
+
+        <!-- Echiquier carré parfait -->
+        <div class="w-full max-w-[360px] aspect-square mx-auto">
+            <div id="board" class="grid grid-cols-8 grid-rows-8 w-full h-full border-4 border-slate-700 rounded-lg overflow-hidden shadow-inner">
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <button onclick="resetGame()" class="mt-4 w-full bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-bold py-3 rounded-xl transition shadow-lg text-sm sm:text-base">
+            🔄 Nouvelle Partie
+        </button>
+    </div>
+
+    <script>
+        const PIECES = {
+            'r': '♜', 'n': '♞', 'b': '♝', 'q': '♛', 'k': '♚', 'p': '♟',
+            'R': '♖', 'N': '♘', 'B': '♗', 'Q': '♕', 'K': '♔', 'P': '♙'
+        };
+
+        const initialBoard = [
+            ['r', 'n', 'b', 'q', 'k', 'b', 'n', 'r'],
+            ['p', 'p', 'p', 'p', 'p', 'p', 'p', 'p'],
+            ['', '', '', '', '', '', '', ''],
+            ['', '', '', '', '', '', '', ''],
+            ['', '', '', '', '', '', '', ''],
+            ['', '', '', '', '', '', '', ''],
+            ['P', 'P', 'P', 'P', 'P', 'P', 'P', 'P'],
+            ['R', 'N', 'B', 'Q', 'K', 'B', 'N', 'R']
+        ];
+
+        let boardState = [];
+        let turn = 'white';
+        let gameMode = 'pvp';
+        let selectedCell = null;
+        let validMoves = [];
+
+        function isWhite(piece) { return piece && piece === piece.toUpperCase(); }
+        function isBlack(piece) { return piece && piece === piece.toLowerCase(); }
+
+        function setMode(mode) {
+            gameMode = mode;
+            document.getElementById('btn-pvp').className = mode === 'pvp' 
+                ? 'flex-1 py-2 rounded-lg font-bold text-xs sm:text-sm transition-all bg-indigo-600 text-white'
+                : 'flex-1 py-2 rounded-lg font-bold text-xs sm:text-sm transition-all text-slate-300 hover:text-white';
+            document.getElementById('btn-ai').className = mode === 'ai' 
+                ? 'flex-1 py-2 rounded-lg font-bold text-xs sm:text-sm transition-all bg-indigo-600 text-white'
+                : 'flex-1 py-2 rounded-lg font-bold text-xs sm:text-sm transition-all text-slate-300 hover:text-white';
+            resetGame();
+        }
+
+        function resetGame() {
+            boardState = JSON.parse(JSON.stringify(initialBoard));
+            turn = 'white';
+            selectedCell = null;
+            validMoves = [];
+            updateStatus();
+            renderBoard();
+        }
+
+        function updateStatus() {
+            const statusEl = document.getElementById('status');
+            if (turn === 'white') {
+                statusEl.innerText = "Tour des Blancs ♔" + (gameMode === 'ai' ? ' (Vous)' : '');
+                statusEl.className = "mb-4 text-sm sm:text-base font-bold bg-slate-700/50 py-2 px-4 rounded-xl text-emerald-400 w-full";
+            } else {
+                statusEl.innerText = "Tour des Noirs ♚" + (gameMode === 'ai' ? ' (IA...)' : '');
+                statusEl.className = "mb-4 text-sm sm:text-base font-bold bg-slate-700/50 py-2 px-4 rounded-xl text-amber-400 w-full";
+            }
+        }
+
+        function onCellClick(r, c) {
+            if (gameMode === 'ai' && turn === 'black') return;
+
+            const piece = boardState[r][c];
+
+            if (selectedCell) {
+                const isTargetValid = validMoves.some(m => m.r === r && m.c === c);
+                if (isTargetValid) {
+                    makeMove(selectedCell.r, selectedCell.c, r, c);
+                    return;
+                }
+            }
+
+            if (piece) {
+                if ((turn === 'white' && isWhite(piece)) || (turn === 'black' && isBlack(piece))) {
+                    selectedCell = { r, c };
+                    validMoves = calculateValidMoves(r, c, piece);
+                    renderBoard();
+                    return;
+                }
+            }
+
+            selectedCell = null;
+            validMoves = [];
+            renderBoard();
+        }
+
+        function makeMove(fromR, fromC, toR, toC) {
+            boardState[toR][toC] = boardState[fromR][fromC];
+            boardState[fromR][fromC] = '';
+
+            if (boardState[toR][toC] === 'P' && toR === 0) boardState[toR][toC] = 'Q';
+            if (boardState[toR][toC] === 'p' && toR === 7) boardState[toR][toC] = 'q';
+
+            turn = turn === 'white' ? 'black' : 'white';
+            selectedCell = null;
+            validMoves = [];
+            updateStatus();
+            renderBoard();
+
+            if (gameMode === 'ai' && turn === 'black') {
+                setTimeout(triggerAIMove, 400);
+            }
+        }
+
+        function triggerAIMove() {
+            let allMoves = [];
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const piece = boardState[r][c];
+                    if (piece && isBlack(piece)) {
+                        const moves = calculateValidMoves(r, c, piece);
+                        moves.forEach(m => {
+                            const target = boardState[m.r][m.c];
+                            let score = 0;
+                            if (target) {
+                                const values = { 'p': 10, 'n': 30, 'b': 30, 'r': 50, 'q': 90, 'k': 900 };
+                                score = (values[target.toLowerCase()] || 0) + 10;
+                            }
+                            allMoves.push({ from: { r, c }, to: { r: m.r, c: m.c }, score });
+                        });
+                    }
+                }
+            }
+
+            if (allMoves.length > 0) {
+                allMoves.sort((a, b) => b.score - a.score);
+                const bestMoves = allMoves.filter(m => m.score === allMoves[0].score);
+                const chosenMove = bestMoves[Math.floor(Math.random() * bestMoves.length)];
+                makeMove(chosenMove.from.r, chosenMove.from.c, chosenMove.to.r, chosenMove.to.c);
+            }
+        }
+
+        function calculateValidMoves(r, c, piece) {
+            const moves = [];
+            const isWhitePiece = isWhite(piece);
+            const type = piece.toLowerCase();
+
+            const addMoveIfValid = (nr, nc) => {
+                if (nr < 0 || nr > 7 || nc < 0 || nc > 7) return false;
+                const target = boardState[nr][nc];
+                if (!target) {
+                    moves.push({ r: nr, c: nc });
+                    return true;
+                }
+                if ((isWhitePiece && isBlack(target)) || (!isWhitePiece && isWhite(target))) {
+                    moves.push({ r: nr, c: nc });
+                }
+                return false;
+            };
+
+            if (type === 'p') {
+                const dir = isWhitePiece ? -1 : 1;
+                const startRow = isWhitePiece ? 6 : 1;
+
+                if (r + dir >= 0 && r + dir <= 7 && !boardState[r + dir][c]) {
+                    moves.push({ r: r + dir, c });
+                    if (r === startRow && !boardState[r + 2 * dir][c]) {
+                        moves.push({ r: r + 2 * dir, c });
+                    }
+                }
+                [-1, 1].forEach(dc => {
+                    const nc = c + dc;
+                    const nr = r + dir;
+                    if (nr >= 0 && nr <= 7 && nc >= 0 && nc <= 7) {
+                        const target = boardState[nr][nc];
+                        if (target && ((isWhitePiece && isBlack(target)) || (!isWhitePiece && isWhite(target)))) {
+                            moves.push({ r: nr, c: nc });
+                        }
+                    }
+                });
+            }
+
+            if (type === 'n') {
+                const offsets = [[-2, -1], [-2, 1], [-1, -2], [-1, 2], [1, -2], [1, 2], [2, -1], [2, 1]];
+                offsets.forEach(([dr, dc]) => addMoveIfValid(r + dr, c + dc));
+            }
+
+            if (type === 'k') {
+                const offsets = [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1]];
+                offsets.forEach(([dr, dc]) => addMoveIfValid(r + dr, c + dc));
+            }
+
+            if (type === 'r' || type === 'q') {
+                const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+                dirs.forEach(([dr, dc]) => {
+                    let step = 1;
+                    while (addMoveIfValid(r + dr * step, c + dc * step)) { step++; }
+                });
+            }
+
+            if (type === 'b' || type === 'q') {
+                const dirs = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
+                dirs.forEach(([dr, dc]) => {
+                    let step = 1;
+                    while (addMoveIfValid(r + dr * step, c + dc * step)) { step++; }
+                });
+            }
+
+            return moves;
+        }
+
+        function renderBoard() {
+            const boardEl = document.getElementById('board');
+            boardEl.innerHTML = '';
+
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const isDark = (r + c) % 2 === 1;
+                    const piece = boardState[r][c];
+                    const isSelected = selectedCell && selectedCell.r === r && selectedCell.c === c;
+                    const isHighlight = validMoves.some(m => m.r === r && m.c === c);
+
+                    let cellClasses = `w-full h-full flex items-center justify-center relative cursor-pointer ${isDark ? 'cell-dark' : 'cell-light'}`;
+                    if (isSelected) cellClasses += ' cell-selected';
+                    if (isHighlight) cellClasses += ' cell-highlight';
+
+                    boardEl.innerHTML += `
+                        <div class="${cellClasses}" onclick="onCellClick(${r}, ${c})">
+                            ${piece ? `<span class="piece text-2xl sm:text-3xl leading-none">${PIECES[piece]}</span>` : ''}
+                        </div>
+                    `;
+                }
+            }
+        }
+
+        resetGame();
+    </script>
+</body>
+</html>

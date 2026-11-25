@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Schotten Totten</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Tartan Background */
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #8b0000;
+            background-image: 
+                repeating-linear-gradient(0deg, transparent, transparent 20px, rgba(0,0,0,0.2) 20px, rgba(0,0,0,0.2) 40px),
+                repeating-linear-gradient(90deg, transparent, transparent 20px, rgba(255,215,0,0.1) 20px, rgba(255,215,0,0.1) 40px),
+                repeating-linear-gradient(45deg, transparent, transparent 30px, rgba(0,0,100,0.3) 30px, rgba(0,0,100,0.3) 60px);
+            color: white;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            min-height: 100dvh;
+            max-height: 100dvh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            user-select: none;
+        }
+
+        /* Screens */
+        .screen { display: none; height: 100%; width: 100%; flex-direction: column; }
+        .screen.active { display: flex; }
+
+        /* Game Board Area */
+        #board-area {
+            flex: 1;
+            overflow: auto;
+            display: flex;
+            align-items: center;
+            padding: 20px;
+            gap: 15px;
+            background: rgba(0, 0, 0, 0.4);
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.8);
+        }
+        
+        #board-area::-webkit-scrollbar { height: 8px; }
+        #board-area::-webkit-scrollbar-thumb { background: #fbbf24; border-radius: 4px; }
+
+        /* Columns (1 per stone) */
+        .stone-col {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-width: 70px;
+            height: 100%;
+        }
+
+        .card-stack {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 120px;
+            width: 60px;
+        }
+
+        /* Card Styles */
+        .st-card {
+            width: 55px;
+            height: 80px;
+            border-radius: 6px;
+            border: 2px solid white;
+            display: flex;
+            align-items: flex-start;
+            justify-content: flex-start;
+            padding: 4px;
+            font-size: 20px;
+            font-weight: 900;
+            color: white;
+            text-shadow: 1px 1px 3px black;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.5);
+            flex-shrink: 0;
+            background: gray; /* Fallback */
+            line-height: 1;
+        }
+        
+        .stacked-card { margin-top: -60px; }
+        .stacked-card:first-child { margin-top: 0; }
+
+        /* Card Colors */
+        .bg-red { background: linear-gradient(135deg, #ef4444, #991b1b); }
+        .bg-blue { background: linear-gradient(135deg, #3b82f6, #1e3a8a); }
+        .bg-green { background: linear-gradient(135deg, #22c55e, #14532d); }
+        .bg-yellow { background: linear-gradient(135deg, #eab308, #854d0e); }
+        .bg-purple { background: linear-gradient(135deg, #a855f7, #581c87); }
+        .bg-orange { background: linear-gradient(135deg, #f97316, #9a3412); }
+
+        /* Hand Cards */
+        #player-hand {
+            min-height: 110px;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            padding: 10px;
+            padding-bottom: calc(10px + env(safe-area-inset-bottom));
+            border-top: 2px solid #fbbf24;
+            flex-shrink: 0;
+        }
+
+        .hand-card {
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .hand-card:hover { transform: translateY(-10px); }
+        .hand-card.selected {
+            transform: translateY(-15px);
+            border-color: #fbbf24;
+            box-shadow: 0 0 15px #fbbf24;
+        }
+
+        /* Stones */
+        .stone {
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, #9ca3af, #4b5563);
+            border: 3px solid #1f2937;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 20px;
+            color: rgba(255,255,255,0.5);
+            margin: 10px 0;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.5), 0 4px 6px rgba(0,0,0,0.5);
+            transition: all 0.3s;
+        }
+
+        .stone.valid-target {
+            border-color: #fbbf24;
+            box-shadow: 0 0 20px #fbbf24;
+            color: white;
+            cursor: pointer;
+            animation: pulse 1.5s infinite;
+        }
+
+        .stone.claimed-player {
+            background: linear-gradient(135deg, #22c55e, #14532d);
+            border-color: #4ade80;
+            color: white;
+        }
+
+        .stone.claimed-ai {
+            background: linear-gradient(135deg, #ef4444, #991b1b);
+            border-color: #f87171;
+            color: white;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        /* Headers / Info */
+        .info-bar {
+            background: rgba(0,0,0,0.8);
+            padding: 10px 15px;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 2px solid #fbbf24;
+            flex-shrink: 0;
+        }
+
+        .btn {
+            background: #fbbf24;
+            color: #78350f;
+            font-weight: bold;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            border: 2px solid #f59e0b;
+            text-transform: uppercase;
+            transition: all 0.2s;
+        }
+        .btn:hover { background: #fcd34d; transform: scale(1.05); }
+        .btn:active { transform: scale(0.95); }
+    </style>
+</head>
+<body>
+
+    <!-- HOME SCREEN -->
+    <div id="screen-home" class="screen active justify-center items-center">
+        <div class="bg-black/80 p-8 rounded-xl border-4 border-yellow-500 text-center max-w-sm w-full shadow-2xl">
+            <h1 class="text-5xl font-black text-yellow-400 mb-2 uppercase tracking-widest">Schotten<br>Totten</h1>
+            <p class="text-gray-300 mb-6 italic">Défendez les bornes de votre clan !</p>
+
+            <div class="mb-6 flex flex-col gap-2 bg-black/50 p-4 rounded-lg border border-gray-600">
+                <label class="text-white font-bold mb-1">Difficulté de l'IA :</label>
+                <div class="flex justify-around gap-2 text-sm text-gray-200 font-bold">
+                    <label class="flex items-center gap-1 cursor-pointer"><input type="radio" name="difficulty" value="facile" class="accent-yellow-500 w-4 h-4"> Facile</label>
+                    <label class="flex items-center gap-1 cursor-pointer"><input type="radio" name="difficulty" value="normal" checked class="accent-yellow-500 w-4 h-4"> Normal</label>
+                    <label class="flex items-center gap-1 cursor-pointer"><input type="radio" name="difficulty" value="difficile" class="accent-yellow-500 w-4 h-4"> Difficile</label>
+                </div>
+            </div>
+
+            <div class="flex justify-around mb-6 text-white font-bold">
+                <div>Victoires : <span id="stat-wins" class="text-green-400">0</span></div>
+                <div>Défaites : <span id="stat-losses" class="text-red-400">0</span></div>
+            </div>
+            <button onclick="startGame()" class="btn w-full text-xl py-4">Jouer</button>
+        </div>
+    </div>
+
+    <!-- GAME SCREEN -->
+    <div id="screen-game" class="screen">
+        
+        <!-- Info Bar Top -->
+        <div class="info-bar shrink-0">
+            <div class="flex items-center gap-2">
+                <span class="text-red-400 font-bold text-xl">🤖 IA</span>
+                <span class="bg-red-900 px-3 py-1 rounded text-white font-bold border border-red-500">Bornes : <span id="ai-score">0</span></span>
+            </div>
+            <div id="turn-indicator" class="text-yellow-400 font-bold tracking-widest uppercase">À votre tour</div>
+            <div class="flex items-center gap-2">
+                <span class="bg-green-900 px-3 py-1 rounded text-white font-bold border border-green-500">Bornes : <span id="player-score">0</span></span>
+                <span class="text-green-400 font-bold text-xl">Vous 👤</span>
+            </div>
+        </div>
+
+        <!-- Board -->
+        <div id="board-area">
+            <!-- Stones generated here -->
+        </div>
+
+        <!-- Player Hand -->
+        <div id="player-hand">
+            <!-- Cards generated here -->
+        </div>
+    </div>
+
+    <!-- GAME OVER SCREEN -->
+    <div id="screen-gameover" class="screen justify-center items-center bg-black/90 absolute inset-0 z-50">
+        <div class="bg-gray-900 p-8 rounded-xl border-4 border-yellow-500 text-center max-w-sm w-full">
+            <h2 id="go-title" class="text-4xl font-black mb-4">Fin de partie</h2>
+            <p id="go-msg" class="text-lg text-gray-300 mb-8">La bataille est terminée.</p>
+            <button onclick="location.reload()" class="btn w-full">Menu principal</button>
+        </div>
+    </div>
+
+    <script>
+        // Game Constants
+        const COLORS = ['red', 'blue', 'green', 'yellow', 'purple', 'orange'];
+        
+        // Game State
+        let state = {
+            deck: [],
+            playerHand: [],
+            aiHand: [],
+            stones: [], // 9 stones
+            turn: 'player', // 'player' or 'ai'
+            selectedCardIdx: null,
+            globalTurnCounter: 0,
+            gameOver: false,
+            aiDifficulty: 'normal'
+        };
+
+        function startGame() {
+            let diffEl = document.querySelector('input[name="difficulty"]:checked');
+            let diff = diffEl ? diffEl.value : 'normal';
+
+            // 1. Build & Shuffle Deck (54 cards)
+            let deck = [];
+            COLORS.forEach(color => {
+                for(let val = 1; val <= 9; val++) {
+                    deck.push({ color: color, val: val });
+                }
+            });
+            
+            // Fisher-Yates Shuffle
+            for (let i = deck.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [deck[i], deck[j]] = [deck[j], deck[i]];
+            }
+
+            // 2. Initialize Stones (9 stones)
+            let stones = [];
+            for (let i = 0; i < 9; i++) {
+                stones.push({
+                    id: i,
+                    pCards: [],
+                    aCards: [],
+                    claimedBy: null, // 'player', 'ai', or null
+                    pFinishedTurn: 0,
+                    aFinishedTurn: 0
+                });
+            }
+
+            // 3. Deal Initial Hands (6 cards each)
+            let pHand = [];
+            let aHand = [];
+            for (let i = 0; i < 6; i++) {
+                pHand.push(deck.pop());
+                aHand.push(deck.pop());
+            }
+
+            // 4. Update State
+            state = {
+                deck: deck,
+                playerHand: pHand,
+                aiHand: aHand,
+                stones: stones,
+                turn: 'player',
+                selectedCardIdx: null,
+                globalTurnCounter: 0,
+                gameOver: false,
+                aiDifficulty: diff
+            };
+
+            // 5. Switch Screen & Render
+            document.getElementById('screen-home').classList.remove('active');
+            document.getElementById('screen-game').classList.add('active');
+            renderAll();
+        }
+
+        // --- INTERACTION LOGIC ---
+
+        function selectCard(idx) {
+            if (state.turn !== 'player' || state.gameOver) return;
+            state.selectedCardIdx = (state.selectedCardIdx === idx) ? null : idx;
+            renderAll();
+        }
+
+        function playOnStone(stoneIdx) {
+            if (state.turn !== 'player' || state.gameOver || state.selectedCardIdx === null) return;
+            
+            let stone = state.stones[stoneIdx];
+            
+            // Validate move
+            if (stone.claimedBy !== null || stone.pCards.length >= 3) return;
+
+            // Apply move
+            state.globalTurnCounter++;
+            let card = state.playerHand.splice(state.selectedCardIdx, 1)[0];
+            stone.pCards.push(card);
+            state.selectedCardIdx = null; // Clear selection
+
+            // Check if player finished this side
+            if (stone.pCards.length === 3) {
+                stone.pFinishedTurn = state.globalTurnCounter;
+            }
+
+            // Draw new card if deck is not empty
+            if (state.deck.length > 0) {
+                state.playerHand.push(state.deck.pop());
+            }
+
+            checkStoneClaim(stone);
+            renderAll();
+
+            if (!checkWinCondition()) {
+                state.turn = 'ai';
+                renderAll(); // Updates indicator
+                setTimeout(aiTurn, 800);
+            }
+        }
+
+        function getMoveFacile(validStones) {
+            let rStoneIdx = Math.floor(Math.random() * validStones.length);
+            let rCardIdx = Math.floor(Math.random() * state.aiHand.length);
+            return { stone: validStones[rStoneIdx], cardIdx: rCardIdx };
+        }
+
+        function getMoveNormal(validStones) {
+            // IA Normale : Essaie de faire correspondre les couleurs ou les valeurs
+            let bestMove = null;
+            let bestScore = -1;
+
+            for (let cIdx = 0; cIdx < state.aiHand.length; cIdx++) {
+                let card = state.aiHand[cIdx];
+                for (let sIdx = 0; sIdx < validStones.length; sIdx++) {
+                    let stone = validStones[sIdx];
+                    let score = Math.random(); // Base aléatoire pour départager
+                    if (stone.aCards.length > 0) {
+                        let matchColor = stone.aCards.some(c => c.color === card.color);
+                        let matchVal = stone.aCards.some(c => c.val === card.val);
+                        if (matchColor) score += 5; // Aime la même couleur (Couleur/Suite couleur)
+                        if (matchVal) score += 10; // Adore la même valeur (Brelan)
+                    }
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestMove = { stone: stone, cardIdx: cIdx };
+                    }
+                }
+            }
+            return bestMove;
+        }
+
+        function getMoveDifficile(validStones) {
+            // IA Difficile : Simule le coup et évalue la puissance finale du groupe
+            let bestMove = null;
+            let bestScore = -Infinity;
+
+            for (let cIdx = 0; cIdx < state.aiHand.length; cIdx++) {
+                let card = state.aiHand[cIdx];
+                for (let sIdx = 0; sIdx < validStones.length; sIdx++) {
+                    let stone = validStones[sIdx];
+                    let score = Math.random(); // Départage en cas d'égalité parfaite
+
+                    let simulatedAI = [...stone.aCards, card];
+                    let aiGrp = getGroupScore(simulatedAI);
+                    let pGrp = getGroupScore(stone.pCards);
+
+                    // Détection du God-Move (7-8-9 même couleur = rang 5, somme 24)
+                    let isUnbeatable = (simulatedAI.length === 3 && aiGrp.rank === 5 && aiGrp.sum === 24);
+                    if (isUnbeatable) score += 10000;
+
+                    // Si le joueur a posé une combinaison invincible, fuir cette borne
+                    let pUnbeatable = (stone.pCards.length === 3 && pGrp.rank === 5 && pGrp.sum === 24);
+                    if (pUnbeatable && !isUnbeatable) score -= 10000;
+
+                    if (simulatedAI.length === 3) {
+                        // Si le coup finit la borne
+                        if (stone.pCards.length === 3) {
+                            // Si le joueur a aussi fini, vérifier qui gagne vraiment
+                            if (aiGrp.rank > pGrp.rank || (aiGrp.rank === pGrp.rank && aiGrp.sum > pGrp.sum)) {
+                                score += 5000; // Victoire sûre
+                            } else {
+                                score -= 2000; // Défaite sûre sur cette borne, on évite
+                            }
+                        } else {
+                            // On finit avant lui, on valorise la puissance de notre groupe
+                            score += (aiGrp.rank * 100) + aiGrp.sum;
+                        }
+                    } else {
+                        // Le coup prépare une combinaison (1 ou 2 cartes)
+                        let sameColor = simulatedAI.every(c => c.color === card.color);
+                        let sameVal = simulatedAI.every(c => c.val === card.val);
+                        
+                        if (sameVal) score += 300; // Brelan potentiel
+                        if (sameColor) {
+                            score += 200; // Couleur potentielle
+                            // Vérification d'une suite possible (valeurs proches)
+                            if (simulatedAI.length === 2) {
+                                let diff = Math.abs(simulatedAI[0].val - simulatedAI[1].val);
+                                if (diff === 1 || diff === 2) score += 150; // Suite couleur potentielle
+                            }
+                        }
+                    }
+
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestMove = { stone: stone, cardIdx: cIdx };
+                    }
+                }
+            }
+            return bestMove;
+        }
+
+        function aiTurn() {
+            if (state.gameOver) return;
+
+            // Find valid stones
+            let validStones = state.stones.filter(s => s.claimedBy === null && s.aCards.length < 3);
+            
+            if (validStones.length > 0 && state.aiHand.length > 0) {
+                state.globalTurnCounter++;
+                
+                let move = null;
+                if (state.aiDifficulty === 'facile') {
+                    move = getMoveFacile(validStones);
+                } else if (state.aiDifficulty === 'difficile') {
+                    move = getMoveDifficile(validStones);
+                } else {
+                    move = getMoveNormal(validStones);
+                }
+                
+                let stone = move.stone;
+                let card = state.aiHand.splice(move.cardIdx, 1)[0];
+
+                stone.aCards.push(card);
+                
+                if (stone.aCards.length === 3) {
+                    stone.aFinishedTurn = state.globalTurnCounter;
+                }
+
+                if (state.deck.length > 0) {
+                    state.aiHand.push(state.deck.pop());
+                }
+
+                checkStoneClaim(stone);
+            }
+
+            renderAll();
+
+            if (!checkWinCondition()) {
+                state.turn = 'player';
+                renderAll();
+            }
+        }
+
+        // --- EVALUATION LOGIC ---
+
+        function getGroupScore(cards) {
+            if (cards.length < 3) return { rank: 0, sum: 0 };
+
+            let vals = cards.map(c => c.val).sort((a,b) => a-b);
+            let colors = cards.map(c => c.color);
+            
+            let isFlush = (colors[0] === colors[1] && colors[1] === colors[2]);
+            let isStraight = (vals[2] - vals[1] === 1) && (vals[1] - vals[0] === 1);
+            let isThree = (vals[0] === vals[1] && vals[1] === vals[2]);
+            let sum = vals[0] + vals[1] + vals[2];
+
+            // 5: Straight Flush
+            if (isFlush && isStraight) return { rank: 5, sum: sum };
+            // 4: Three of a Kind
+            if (isThree) return { rank: 4, sum: sum };
+            // 3: Flush
+            if (isFlush) return { rank: 3, sum: sum };
+            // 2: Straight
+            if (isStraight) return { rank: 2, sum: sum };
+            // 1: Sum (Any group)
+            return { rank: 1, sum: sum };
+        }
+
+        function checkStoneClaim(stone) {
+            // Only evaluate if it's not claimed yet
+            if (stone.claimedBy !== null) return;
+
+            let pScore = getGroupScore(stone.pCards);
+            let aScore = getGroupScore(stone.aCards);
+
+            // Règle : Victoire automatique si 7-8-9 de même couleur (Rank 5, Sum 24)
+            let pUnbeatable = (stone.pCards.length === 3 && pScore.rank === 5 && pScore.sum === 24);
+            let aUnbeatable = (stone.aCards.length === 3 && aScore.rank === 5 && aScore.sum === 24);
+
+            if (pUnbeatable && aUnbeatable) {
+                stone.claimedBy = (stone.pFinishedTurn < stone.aFinishedTurn) ? 'player' : 'ai';
+                return;
+            } else if (pUnbeatable) {
+                stone.claimedBy = 'player';
+                return;
+            } else if (aUnbeatable) {
+                stone.claimedBy = 'ai';
+                return;
+            }
+
+            // Normal check requires both sides to be full
+            if (stone.pCards.length < 3 || stone.aCards.length < 3) return;
+
+            let winner = null;
+
+            if (pScore.rank > aScore.rank) {
+                winner = 'player';
+            } else if (aScore.rank > pScore.rank) {
+                winner = 'ai';
+            } else {
+                // Ranks are tied, check sum
+                if (pScore.sum > aScore.sum) {
+                    winner = 'player';
+                } else if (aScore.sum > pScore.sum) {
+                    winner = 'ai';
+                } else {
+                    // Exact tie, winner is who finished first
+                    if (stone.pFinishedTurn < stone.aFinishedTurn) {
+                        winner = 'player';
+                    } else if (stone.aFinishedTurn < stone.pFinishedTurn) {
+                        winner = 'ai';
+                    } else {
+                        winner = 'player'; // Failsafe
+                    }
+                }
+            }
+
+            stone.claimedBy = winner;
+        }
+
+        function checkWinCondition() {
+            let claims = state.stones.map(s => s.claimedBy);
+            
+            let pCount = claims.filter(c => c === 'player').length;
+            let aCount = claims.filter(c => c === 'ai').length;
+
+            // 1. Check for 5 total claims
+            if (pCount >= 5) return triggerGameOver('player');
+            if (aCount >= 5) return triggerGameOver('ai');
+
+            // 2. Check for 3 adjacent claims
+            for (let i = 0; i <= 6; i++) {
+                if (claims[i] !== null && claims[i] === claims[i+1] && claims[i] === claims[i+2]) {
+                    return triggerGameOver(claims[i]);
+                }
+            }
+
+            // 3. Draw / Board Locked
+            let allClaimed = claims.every(c => c !== null);
+            if (allClaimed) {
+                return triggerGameOver(pCount > aCount ? 'player' : 'ai');
+            }
+
+            return false;
+        }
+
+        function triggerGameOver(winner) {
+            state.gameOver = true;
+            
+            let titleEl = document.getElementById('go-title');
+            let msgEl = document.getElementById('go-msg');
+
+            if (winner === 'player') {
+                titleEl.innerText = "Victoire !";
+                titleEl.className = "text-5xl font-black mb-4 text-green-500";
+                msgEl.innerText = "Vous avez défendu vos terres avec succès.";
+                
+                // Sauvegarde LocalStorage
+                let w = parseInt(localStorage.getItem('st_wins') || 0) + 1;
+                localStorage.setItem('st_wins', w);
+            } else {
+                titleEl.innerText = "Défaite !";
+                titleEl.className = "text-5xl font-black mb-4 text-red-500";
+                msgEl.innerText = "Le clan rival a envahi vos terres.";
+                
+                // Sauvegarde LocalStorage
+                let l = parseInt(localStorage.getItem('st_losses') || 0) + 1;
+                localStorage.setItem('st_losses', l);
+            }
+
+            setTimeout(() => {
+                document.getElementById('screen-gameover').classList.add('active');
+            }, 1000);
+
+            return true;
+        }
+
+        // --- RENDERING ---
+
+        function createCardHTML(card, extraClass = '', onClick = '') {
+            return `
+                <div class="st-card bg-${card.color} ${extraClass}" ${onClick}>
+                    ${card.val}
+                </div>
+            `;
+        }
+
+        function renderAll() {
+            // Update Scores
+            document.getElementById('player-score').innerText = state.stones.filter(s => s.claimedBy === 'player').length;
+            document.getElementById('ai-score').innerText = state.stones.filter(s => s.claimedBy === 'ai').length;
+
+            // Update Turn Indicator
+            let ti = document.getElementById('turn-indicator');
+            if (state.turn === 'player') {
+                ti.innerText = "À votre tour";
+                ti.className = "text-yellow-400 font-bold tracking-widest uppercase animate-pulse";
+            } else {
+                ti.innerText = "L'IA réfléchit...";
+                ti.className = "text-red-400 font-bold tracking-widest uppercase";
+            }
+
+            // Render Board (9 Stones)
+            let boardHTML = '';
+            state.stones.forEach((stone, idx) => {
+                
+                // AI Cards (Top)
+                let aiCardsHTML = '';
+                stone.aCards.forEach((c, i) => {
+                    let stackedClass = i > 0 ? 'stacked-card' : '';
+                    aiCardsHTML += createCardHTML(c, stackedClass);
+                });
+
+                // Stone Element
+                let isTargetable = (state.turn === 'player' && state.selectedCardIdx !== null && stone.claimedBy === null && stone.pCards.length < 3);
+                let stoneClass = 'stone';
+                if (isTargetable) stoneClass += ' valid-target';
+                if (stone.claimedBy === 'player') stoneClass += ' claimed-player';
+                if (stone.claimedBy === 'ai') stoneClass += ' claimed-ai';
+                
+                let stoneDisplay = stone.claimedBy === 'player' ? 'P' : (stone.claimedBy === 'ai' ? 'AI' : (idx + 1));
+                let clickEvt = isTargetable ? `onclick="playOnStone(${idx})"` : '';
+
+                // Player Cards (Bottom)
+                let pCardsHTML = '';
+                stone.pCards.forEach((c, i) => {
+                    let stackedClass = i > 0 ? 'stacked-card' : '';
+                    pCardsHTML += createCardHTML(c, stackedClass);
+                });
+
+                boardHTML += `
+                    <div class="stone-col">
+                        <div class="card-stack justify-end pb-2">${aiCardsHTML}</div>
+                        <div class="${stoneClass}" ${clickEvt}>${stoneDisplay}</div>
+                        <div class="card-stack justify-start pt-2">${pCardsHTML}</div>
+                    </div>
+                `;
+            });
+            document.getElementById('board-area').innerHTML = boardHTML;
+
+            // Render Player Hand
+            let handHTML = '';
+            state.playerHand.forEach((card, idx) => {
+                let selClass = (state.selectedCardIdx === idx) ? 'selected' : '';
+                handHTML += createCardHTML(card, `hand-card ${selClass}`, `onclick="selectCard(${idx})"`);
+            });
+            document.getElementById('player-hand').innerHTML = handHTML;
+        }
+
+        // Load stats on page load
+        window.onload = () => {
+            document.getElementById('stat-wins').innerText = localStorage.getItem('st_wins') || 0;
+            document.getElementById('stat-losses').innerText = localStorage.getItem('st_losses') || 0;
+        };
+    </script>
+</body>
+</html>

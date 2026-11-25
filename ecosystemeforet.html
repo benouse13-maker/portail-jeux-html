@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Écosystème - Forêt</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Nunito', sans-serif;
+            background-color: #2b4c3b; /* Deep forest green */
+            background-image: radial-gradient(#3a634d 1px, transparent 1px);
+            background-size: 20px 20px;
+            color: #fdfbf7;
+        }
+
+        /* Custom Scrollbar for Rules Panel */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.1); 
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #8b5a2b; 
+            border-radius: 10px;
+        }
+
+        .card {
+            background: linear-gradient(145deg, #fdfbf7, #e6e2d3);
+            border: 2px solid #8b5a2b;
+            color: #3e2723;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            transition: all 0.2s ease-in-out;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .card:hover {
+            transform: translateY(-5px) scale(1.02);
+            box-shadow: 0 8px 12px rgba(0,0,0,0.4);
+        }
+
+        .card-selected {
+            ring: 4px;
+            box-shadow: 0 0 0 4px #fbbf24, 0 8px 12px rgba(0,0,0,0.4);
+            transform: translateY(-5px);
+        }
+
+        .grid-cell {
+            background-color: rgba(255, 255, 255, 0.1);
+            border: 2px dashed rgba(255, 255, 255, 0.4);
+            transition: background-color 0.2s;
+        }
+
+        .grid-cell:hover.droppable {
+            background-color: rgba(255, 255, 255, 0.2);
+            border-style: solid;
+            border-color: #fbbf24;
+            cursor: pointer;
+        }
+
+        .emoji-shadow {
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        /* Modal Animation */
+        @keyframes popIn {
+            0% { transform: scale(0.8); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .modal-content {
+            animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col p-4 md:p-8">
+
+    <!-- Header -->
+    <header class="flex flex-col sm:flex-row justify-between items-center bg-black/30 p-4 md:p-6 rounded-2xl mb-6 shadow-lg backdrop-blur-sm">
+        <div>
+            <h1 class="text-3xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-green-300 to-yellow-200 tracking-wide drop-shadow-md">
+                🌿 Écosystème Forêt
+            </h1>
+            <p class="text-green-100 mt-1 opacity-80">Jeu de draft et de placement en solo</p>
+        </div>
+        <div class="flex items-center gap-6 mt-4 sm:mt-0">
+            <div class="text-center bg-white/10 px-6 py-2 rounded-xl border border-white/20">
+                <span class="block text-sm uppercase tracking-wider text-green-200">Score</span>
+                <span class="text-3xl font-bold text-yellow-300" id="score-display">0</span>
+            </div>
+            <button onclick="initGame()" class="bg-[#8b5a2b] hover:bg-[#6d4622] text-white font-bold py-3 px-6 rounded-xl transition shadow-lg flex items-center gap-2">
+                🔄 Relancer
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Game Area -->
+    <main class="flex-1 flex flex-col lg:flex-row gap-8 max-w-7xl mx-auto w-full">
+        
+        <!-- Left Column: Draft & Grid -->
+        <div class="flex-1 flex flex-col gap-6">
+            
+            <!-- Draft Area -->
+            <div class="bg-black/20 p-4 md:p-6 rounded-2xl border border-white/10">
+                <h2 class="text-xl font-bold mb-4 text-green-200 flex items-center gap-2">
+                    <span>1️⃣</span> Choisissez une carte
+                </h2>
+                <div class="flex justify-center gap-4" id="draft-area">
+                    <!-- Draft cards will be injected here -->
+                </div>
+            </div>
+
+            <!-- Game Grid -->
+            <div class="bg-black/20 p-4 md:p-6 rounded-2xl border border-white/10 flex-1 flex flex-col items-center">
+                <h2 class="text-xl font-bold mb-4 text-green-200 self-start flex items-center gap-2">
+                    <span>2️⃣</span> Placez-la dans votre forêt
+                </h2>
+                <div class="grid grid-cols-5 gap-2 md:gap-3 w-full max-w-3xl" id="game-grid">
+                    <!-- 20 grid cells will be injected here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Rules Panel -->
+        <div class="lg:w-80 bg-[#e6e2d3] text-[#3e2723] rounded-2xl shadow-xl border-4 border-[#8b5a2b] overflow-hidden flex flex-col max-h-[800px]">
+            <div class="bg-[#8b5a2b] text-[#fdfbf7] p-4 text-center">
+                <h2 class="text-2xl font-black">📖 Règles de Score</h2>
+            </div>
+            <div class="p-4 overflow-y-auto flex-1 space-y-3" id="rules-panel">
+                <!-- Rules will be injected here -->
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Game Over Modal -->
+    <div id="game-over-modal" class="fixed inset-0 bg-black/80 hidden z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="modal-content bg-gradient-to-br from-[#2b4c3b] to-[#1a3025] border-4 border-yellow-500 rounded-3xl p-8 max-w-md w-full text-center shadow-2xl relative overflow-hidden">
+            <div class="absolute -top-10 -right-10 text-9xl opacity-20">🌲</div>
+            <h2 class="text-4xl font-black text-yellow-300 mb-2 relative z-10">Forêt Achevée !</h2>
+            <p class="text-green-100 text-lg mb-6 relative z-10">Votre écosystème est maintenant complet.</p>
+            
+            <div class="bg-black/40 rounded-2xl p-6 mb-8 border border-white/10 relative z-10">
+                <p class="text-sm uppercase tracking-widest text-green-200 mb-1">Score Final</p>
+                <p class="text-7xl font-black text-white" id="final-score">0</p>
+            </div>
+
+            <button onclick="initGame()" class="w-full bg-yellow-500 hover:bg-yellow-400 text-black text-xl font-bold py-4 px-8 rounded-xl transition shadow-lg relative z-10 transform hover:scale-105">
+                Rejouer une partie
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // --- Data & Rules ---
+        const cardTypes = [
+            { id: 'ours', name: 'Ours', emoji: '🐻', rule: '+3 pts par Truite ou Cerf adjacent', 
+              calc: (adj) => adj.filter(c => ['truite', 'cerf'].includes(c.id)).length * 3 },
+            
+            { id: 'truite', name: 'Truite', emoji: '🐟', rule: '+3 pts par Ruisseau adjacent', 
+              calc: (adj) => adj.filter(c => c.id === 'ruisseau').length * 3 },
+            
+            { id: 'abeille', name: 'Abeille', emoji: '🐝', rule: '+3 pts par Prairie adjacente', 
+              calc: (adj) => adj.filter(c => c.id === 'prairie').length * 3 },
+            
+            { id: 'prairie', name: 'Prairie', emoji: '🌼', rule: '+2 pts par Abeille ou Papillon adjacent', 
+              calc: (adj) => adj.filter(c => ['abeille', 'papillon'].includes(c.id)).length * 2 },
+            
+            { id: 'loup', name: 'Loup', emoji: '🐺', rule: '+4 pts par Cerf adjacent', 
+              calc: (adj) => adj.filter(c => c.id === 'cerf').length * 4 },
+            
+            { id: 'cerf', name: 'Cerf', emoji: '🦌', rule: '+2 pts par Arbre ou Prairie adjacent', 
+              calc: (adj) => adj.filter(c => ['arbre', 'prairie'].includes(c.id)).length * 2 },
+            
+            { id: 'ruisseau', name: 'Ruisseau', emoji: '💧', rule: '+3 pts par Ruisseau adjacent', 
+              calc: (adj) => adj.filter(c => c.id === 'ruisseau').length * 3 },
+            
+            { id: 'arbre', name: 'Arbre', emoji: '🌲', rule: '+2 pts par Arbre adjacent', 
+              calc: (adj) => adj.filter(c => c.id === 'arbre').length * 2 },
+            
+            { id: 'aigle', name: 'Aigle', emoji: '🦅', rule: '+4 pts par Truite ou Souris adjacente', 
+              calc: (adj) => adj.filter(c => ['truite', 'souris'].includes(c.id)).length * 4 },
+            
+            { id: 'souris', name: 'Souris', emoji: '🐀', rule: '+2 pts par Arbre ou Prairie adjacent', 
+              calc: (adj) => adj.filter(c => ['arbre', 'prairie'].includes(c.id)).length * 2 },
+            
+            { id: 'papillon', name: 'Papillon', emoji: '🦋', rule: '+2 pts par Prairie adjacente', 
+              calc: (adj) => adj.filter(c => c.id === 'prairie').length * 2 }
+        ];
+
+        // --- Game State ---
+        const ROWS = 4;
+        const COLS = 5;
+        let grid = [];
+        let draftCards = [];
+        let selectedDraftIndex = null;
+        let currentScore = 0;
+
+        // --- DOM Elements ---
+        const draftAreaEl = document.getElementById('draft-area');
+        const gameGridEl = document.getElementById('game-grid');
+        const rulesPanelEl = document.getElementById('rules-panel');
+        const scoreDisplayEl = document.getElementById('score-display');
+        const gameOverModal = document.getElementById('game-over-modal');
+        const finalScoreEl = document.getElementById('final-score');
+
+        // --- Initialization ---
+        function initGame() {
+            // Reset state
+            grid = Array(ROWS).fill(null).map(() => Array(COLS).fill(null));
+            draftCards = [];
+            selectedDraftIndex = null;
+            currentScore = 0;
+            
+            // Hide Modal
+            gameOverModal.classList.add('hidden');
+
+            // Generate initial draft
+            for(let i=0; i<3; i++) {
+                draftCards.push(getRandomCard());
+            }
+
+            renderRules();
+            renderDraft();
+            renderGrid();
+            updateScore();
+        }
+
+        // --- Logic Helpers ---
+        function getRandomCard() {
+            const randomIndex = Math.floor(Math.random() * cardTypes.length);
+            // Clone the object to avoid reference issues
+            return { ...cardTypes[randomIndex] };
+        }
+
+        function getAdjacentCards(r, c) {
+            const adj = [];
+            if (r > 0 && grid[r-1][c]) adj.push(grid[r-1][c]); // North
+            if (r < ROWS - 1 && grid[r+1][c]) adj.push(grid[r+1][c]); // South
+            if (c > 0 && grid[r][c-1]) adj.push(grid[r][c-1]); // West
+            if (c < COLS - 1 && grid[r][c+1]) adj.push(grid[r][c+1]); // East
+            return adj;
+        }
+
+        function calculateTotalScore() {
+            let total = 0;
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    const card = grid[r][c];
+                    if (card) {
+                        const adj = getAdjacentCards(r, c);
+                        total += card.calc(adj);
+                    }
+                }
+            }
+            return total;
+        }
+
+        function updateScore() {
+            currentScore = calculateTotalScore();
+            scoreDisplayEl.innerText = currentScore;
+        }
+
+        function checkGameOver() {
+            // Check if all cells are filled
+            const isFull = grid.every(row => row.every(cell => cell !== null));
+            if (isFull) {
+                setTimeout(() => {
+                    finalScoreEl.innerText = currentScore;
+                    gameOverModal.classList.remove('hidden');
+                }, 500); // Slight delay for the last card animation
+            }
+        }
+
+        // --- Interactions ---
+        function selectDraftCard(index) {
+            if (selectedDraftIndex === index) {
+                selectedDraftIndex = null; // Deselect if clicked again
+            } else {
+                selectedDraftIndex = index;
+            }
+            renderDraft();
+            renderGrid(); // Re-render grid to update droppable highlights
+        }
+
+        function placeCard(r, c) {
+            if (selectedDraftIndex === null || grid[r][c] !== null) return;
+
+            // Place card
+            grid[r][c] = draftCards[selectedDraftIndex];
+            
+            // Replace drafted card
+            draftCards[selectedDraftIndex] = getRandomCard();
+            selectedDraftIndex = null;
+
+            // Update UI & Game State
+            updateScore();
+            renderDraft();
+            renderGrid();
+            checkGameOver();
+        }
+
+        // --- Rendering ---
+        function createCardHTML(card, isDraft = false, index = null) {
+            if (!card) return '';
+            
+            const isSelected = isDraft && selectedDraftIndex === index;
+            const extraClasses = isSelected ? 'ring-4 ring-yellow-400 transform -translate-y-2' : '';
+            
+            return `
+                <div class="card flex flex-col items-center justify-center rounded-xl w-full h-full aspect-[3/4] p-2 relative ${extraClasses}"
+                     ${isDraft ? `onclick="selectDraftCard(${index})"` : ''}>
+                    <div class="text-4xl md:text-5xl lg:text-6xl emoji-shadow mb-1 md:mb-2">${card.emoji}</div>
+                    <div class="text-xs md:text-sm font-bold text-center leading-tight hidden sm:block">${card.name}</div>
+                    ${isSelected ? '<div class="absolute -top-2 -right-2 bg-yellow-400 text-black text-xs font-bold px-2 py-1 rounded-full shadow">Sélectionné</div>' : ''}
+                </div>
+            `;
+        }
+
+        function renderDraft() {
+            draftAreaEl.innerHTML = '';
+            draftCards.forEach((card, index) => {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'w-24 sm:w-28 md:w-32';
+                wrapper.innerHTML = createCardHTML(card, true, index);
+                draftAreaEl.appendChild(wrapper);
+            });
+        }
+
+        function renderGrid() {
+            gameGridEl.innerHTML = '';
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    const cell = document.createElement('div');
+                    const card = grid[r][c];
+                    
+                    // Styling base cell
+                    cell.className = 'w-full aspect-[3/4] rounded-xl flex items-center justify-center relative overflow-visible';
+                    
+                    if (card) {
+                        cell.innerHTML = createCardHTML(card);
+                    } else {
+                        cell.classList.add('grid-cell');
+                        if (selectedDraftIndex !== null) {
+                            cell.classList.add('droppable');
+                        }
+                        cell.onclick = () => placeCard(r, c);
+                    }
+                    
+                    gameGridEl.appendChild(cell);
+                }
+            }
+        }
+
+        function renderRules() {
+            rulesPanelEl.innerHTML = '';
+            cardTypes.forEach(card => {
+                const ruleEl = document.createElement('div');
+                ruleEl.className = 'flex items-center gap-3 bg-white/50 p-3 rounded-xl hover:bg-white/80 transition shadow-sm';
+                ruleEl.innerHTML = `
+                    <div class="text-3xl filter drop-shadow-md w-12 text-center">${card.emoji}</div>
+                    <div>
+                        <div class="font-bold text-[#6d4622]">${card.name}</div>
+                        <div class="text-sm text-[#5a3a1b] leading-tight">${card.rule}</div>
+                    </div>
+                `;
+                rulesPanelEl.appendChild(ruleEl);
+            });
+        }
+
+        // --- Start ---
+        window.onload = initGame;
+
+    </script>
+</body>
+</html>

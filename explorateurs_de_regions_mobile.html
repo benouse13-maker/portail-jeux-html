@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Explorateurs Mobile</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;900&family=Rowdies:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --pierre: #9ca3af; /* Gray */
+            --chimere: #ef4444; /* Red */
+            --chardon: #22c55e; /* Green */
+        }
+        body, html {
+            height: 100%;
+            margin: 0;
+            font-family: 'Nunito', sans-serif;
+            background-color: #f0fdf4;
+            background-image: radial-gradient(#bbf7d0 1px, transparent 1px);
+            background-size: 20px 20px;
+            color: #1f2937;
+            overflow: hidden; /* Prevent body scroll, handle inside containers */
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        h1, h2, h3, .rowdies { font-family: 'Rowdies', cursive; }
+
+        /* Card Styles - Mobile Optimized */
+        .card {
+            width: 85px;
+            height: 120px;
+            border-radius: 0.5rem;
+            position: relative;
+            background-size: cover;
+            box-shadow: 0 3px 5px rgba(0, 0, 0, 0.2);
+            border: 2px solid #fff;
+            display: flex; flex-direction: column; justify-content: space-between;
+            flex-shrink: 0; /* Prevent shrinking in flex row */
+            transition: transform 0.1s;
+        }
+        .card.playable:active {
+            transform: scale(0.95);
+            border-color: #fbbf24;
+        }
+        .card.playable { cursor: pointer; }
+        .card.disabled { opacity: 0.5; filter: grayscale(50%); }
+        
+        .time-badge {
+            position: absolute; top: -6px; left: -6px;
+            width: 28px; height: 28px; border-radius: 50%;
+            background: #fef08a; border: 2px solid #ca8a04;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 900; font-size: 13px; color: #854d0e;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2); z-index: 10;
+        }
+        .clue-badge {
+            position: absolute; top: -4px; right: -4px;
+            width: 22px; height: 22px; border-radius: 4px;
+            background: #3b82f6; border: 1px solid #1d4ed8;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); z-index: 10;
+        }
+
+        .resources-area {
+            display: flex; gap: 2px; padding: 4px; padding-top: 20px; flex-wrap: wrap; justify-content: center;
+        }
+        .res-icon {
+            width: 20px; height: 20px; border-radius: 4px; border: 1px solid rgba(0,0,0,0.3);
+            display: flex; align-items: center; justify-content: center; font-size: 12px;
+        }
+        .res-pierre { background: var(--pierre); }
+        .res-chimere { background: var(--chimere); color: white; }
+        .res-chardon { background: var(--chardon); color: white; }
+        .res-clue { background: #3b82f6; color: white; }
+
+        .quest-area {
+            background: rgba(255, 255, 255, 0.95); border-top: 2px solid #e5e7eb;
+            padding: 2px; border-radius: 0 0 0.4rem 0.4rem;
+            font-size: 10px; font-weight: bold; text-align: center;
+            display: flex; align-items: center; justify-content: center; gap: 2px;
+            min-height: 28px;
+        }
+
+        /* Sanctuaries */
+        .sanctuary {
+            width: 45px; height: 60px; border-radius: 0.3rem; border: 2px solid #d1d5db;
+            background: #f3f4f6; display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1); font-weight: bold; flex-direction: column;
+            flex-shrink: 0; transition: transform 0.1s;
+        }
+        .sanctuary.draftable:active { border-color: #fbbf24; transform: scale(0.95); }
+        
+        /* 3D Flip Animation */
+        .scene { perspective: 600px; }
+        .card-inner {
+            width: 100%; height: 100%; position: relative;
+            transition: transform 0.5s; transform-style: preserve-3d;
+        }
+        .card.flipped .card-inner { transform: rotateY(180deg); }
+        .card-front, .card-back {
+            position: absolute; width: 100%; height: 100%;
+            backface-visibility: hidden; border-radius: 0.5rem;
+        }
+        .card-back {
+            background: #1e3a8a; border: 2px solid #60a5fa;
+            background-image: repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,255,255,0.1) 10px, rgba(255,255,255,0.1) 20px);
+            transform: rotateY(180deg);
+        }
+
+        .floating-score {
+            position: absolute; top: -25px; left: 50%; transform: translateX(-50%);
+            font-size: 22px; font-weight: 900; color: #fbbf24; text-shadow: 0 2px 4px rgba(0,0,0,0.6);
+            animation: floatUp 1.5s ease-out forwards; z-index: 50; pointer-events: none;
+        }
+        @keyframes floatUp {
+            0% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+            100% { opacity: 0; transform: translate(-50%, -30px) scale(1.3); }
+        }
+
+        /* Layout & Scrolling Utilities */
+        .screen { display: none; height: 100dvh; width: 100vw; flex-direction: column; }
+        .screen.active { display: flex; }
+        .modal-overlay { background: rgba(0,0,0,0.7); backdrop-filter: blur(3px); }
+        
+        /* Hide scrollbars for cleaner mobile look but keep functionality */
+        .hide-scroll::-webkit-scrollbar { display: none; }
+        .hide-scroll { -ms-overflow-style: none; scrollbar-width: none; -webkit-overflow-scrolling: touch; scroll-behavior: smooth; }
+
+    </style>
+</head>
+<body>
+
+    <!-- ECRAN ACCUEIL -->
+    <div id="screen-home" class="screen active justify-center items-center p-4 relative z-10">
+        <div class="bg-white/90 w-full max-w-sm p-6 rounded-3xl shadow-2xl border-4 border-green-500 text-center flex flex-col gap-4">
+            <div>
+                <h1 class="text-4xl text-green-700 mb-1 drop-shadow-sm leading-tight">Régions<br>Lointaines</h1>
+                <p class="text-gray-600 font-bold text-sm">Exploration en 8 tours.<br>Décompte de droite à gauche !</p>
+            </div>
+            
+            <div class="bg-green-50 p-3 rounded-xl border border-green-200">
+                <h3 class="font-bold text-green-800 mb-1 text-sm">Palmarès Local</h3>
+                <div class="flex justify-around text-lg rowdies">
+                    <div class="text-green-600">🏆 <span id="stat-wins">0</span></div>
+                    <div class="text-red-500">❌ <span id="stat-losses">0</span></div>
+                </div>
+            </div>
+
+            <button onclick="startGame()" class="bg-green-600 hover:bg-green-500 active:scale-95 text-white rowdies text-2xl py-4 rounded-xl shadow-lg border-b-4 border-green-800 transition-transform">
+                Jouer
+            </button>
+            
+            <button onclick="openRules()" class="bg-blue-600 hover:bg-blue-500 active:scale-95 text-white rowdies text-xl py-3 rounded-xl shadow-lg border-b-4 border-blue-800 transition-transform">
+                📖 Règles
+            </button>
+        </div>
+    </div>
+
+    <!-- ECRAN JEU -->
+    <div id="screen-game" class="screen bg-gray-100">
+        
+        <!-- Header -->
+        <header class="bg-green-800 text-white px-3 py-2 flex justify-between items-center shrink-0 shadow-md z-20">
+            <div class="flex flex-col">
+                <span class="rowdies text-lg leading-none">Tour <span id="ui-round" class="text-yellow-400">1</span>/8</span>
+                <span id="ui-phase" class="text-green-300 text-[10px] uppercase font-bold">Exploration</span>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="openRules()" class="text-xs bg-blue-500 active:bg-blue-400 p-2 rounded font-bold shadow-md">📖</button>
+                <button onclick="location.reload()" class="text-xs bg-red-600 active:bg-red-500 px-3 py-2 rounded font-bold shadow-md">Quitter</button>
+            </div>
+        </header>
+
+        <!-- Status Banner -->
+        <div id="status-banner" class="w-full text-center font-bold py-1 shadow-md z-30 transition-transform duration-300 text-sm hidden">
+            Message...
+        </div>
+
+        <!-- AI AREA (Top) -->
+        <div class="bg-blue-50 border-b-2 border-blue-200 flex flex-col pt-1 pb-2 shrink-0">
+            <div class="flex justify-between items-center px-2 mb-1">
+                <h2 class="rowdies text-blue-800 text-sm">🤖 IA</h2>
+                <div id="ai-sanctuaries" class="flex gap-1 overflow-x-auto hide-scroll justify-end"></div>
+            </div>
+            <!-- AI Tableau (Horizontal Scroll) -->
+            <div id="ai-tableau" class="flex gap-2 overflow-x-auto hide-scroll px-2 py-1 min-h-[130px] items-center">
+                <!-- Cards -->
+            </div>
+        </div>
+
+        <!-- CENTER DRAFT AREA (Middle) -->
+        <div class="bg-green-100 border-b-2 border-green-200 flex-1 flex flex-col justify-center items-center py-2 relative">
+            <h3 class="text-[10px] font-bold text-green-700 uppercase tracking-wider absolute top-1">Rivière Centrale</h3>
+            <div id="center-cards" class="flex gap-3 justify-center w-full px-2 mt-4">
+                <!-- Cards -->
+            </div>
+        </div>
+
+        <!-- HUMAN AREA (Bottom Tableau) -->
+        <div class="bg-orange-50 border-t-2 border-orange-200 flex flex-col pt-1 pb-2 shrink-0 relative">
+            <div class="flex justify-between items-center px-2 mb-1">
+                <h2 class="rowdies text-orange-800 text-sm">👤 Vous</h2>
+                <div id="human-sanctuaries" class="flex gap-1 overflow-x-auto hide-scroll justify-end"></div>
+            </div>
+            <!-- Human Tableau (Horizontal Scroll) -->
+            <div id="human-tableau" class="flex gap-2 overflow-x-auto hide-scroll px-2 py-1 min-h-[130px] items-center">
+                <!-- Cards -->
+            </div>
+        </div>
+
+        <!-- FIXED HUMAN HAND (Very Bottom) -->
+        <div class="bg-gray-800 pb-safe pt-2 px-2 shrink-0 shadow-[0_-4px_6px_rgba(0,0,0,0.3)]">
+            <div class="flex justify-center items-center gap-3 mb-2" id="human-hand">
+                <!-- Cards -->
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: SANCTUARY DRAFT -->
+    <div id="modal-sanctuary" class="fixed inset-0 modal-overlay hidden z-50 items-center justify-center p-4">
+        <div class="bg-white p-5 rounded-2xl shadow-2xl w-full max-w-sm text-center border-4 border-yellow-400">
+            <h2 class="rowdies text-xl text-yellow-600 mb-1">Sanctuaire Trouvé !</h2>
+            <p class="text-xs text-gray-600 mb-4 leading-tight">Temps supérieur au tour précédent. Choisissez :</p>
+            <div id="sanctuary-draft-options" class="flex justify-center gap-3 flex-wrap mb-2">
+                <!-- Options -->
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: GAME OVER -->
+    <div id="modal-gameover" class="fixed inset-0 modal-overlay hidden z-50 flex-col items-center justify-center p-4">
+        <div class="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-sm text-center border-4 border-green-600">
+            <h2 class="rowdies text-3xl text-green-700 mb-4" id="go-title">Fin !</h2>
+            <div class="bg-gray-100 rounded-xl p-4 mb-6 text-left space-y-3 text-lg">
+                <div class="flex justify-between font-bold text-orange-700 border-b pb-2">
+                    <span>👤 Vous:</span> <span id="go-human-score">0 ⭐</span>
+                </div>
+                <div class="flex justify-between font-bold text-blue-700">
+                    <span>🤖 IA:</span> <span id="go-ai-score">0 ⭐</span>
+                </div>
+            </div>
+            <button onclick="location.reload()" class="bg-green-600 active:bg-green-500 text-white font-bold py-4 rounded-xl w-full text-lg shadow-md">
+                Retour à l'accueil
+            </button>
+        </div>
+    </div>
+
+    <!-- MODAL: RULES -->
+    <div id="modal-rules" class="fixed inset-0 modal-overlay hidden z-50 items-center justify-center p-2">
+        <div class="bg-white p-4 rounded-xl shadow-2xl w-full max-w-md text-left border-4 border-blue-500 flex flex-col max-h-[95dvh]">
+            <div class="flex justify-between items-center mb-3 border-b pb-2 shrink-0">
+                <h2 class="rowdies text-2xl text-blue-700">📖 Règles</h2>
+                <button onclick="closeRules()" class="text-gray-500 active:text-red-500 text-3xl font-bold p-2 leading-none">&times;</button>
+            </div>
+            
+            <div class="overflow-y-auto hide-scroll space-y-4 text-gray-700 text-xs flex-1 pr-1">
+                <section>
+                    <h3 class="font-bold text-sm text-gray-900 border-l-4 border-blue-500 pl-2 mb-1">1. Le Concept</h3>
+                    <p>Jouez 8 cartes de gauche à droite. <b>Le décompte final se fait de droite à gauche.</b></p>
+                </section>
+
+                <section>
+                    <h3 class="font-bold text-sm text-gray-900 border-l-4 border-blue-500 pl-2 mb-1">2. Tour de Jeu</h3>
+                    <ul class="list-disc pl-4 space-y-1">
+                        <li><b>Explorer :</b> Jouez une carte simultanément avec l'IA.</li>
+                        <li><b>Sanctuaires :</b> Si votre <i>Temps</i> est <b>strictement supérieur</b> à la carte précédente, piochez 1 Sanctuaire + 1 par symbole 📜 possédé. Gardez-en 1.</li>
+                        <li><b>Draft :</b> Le plus petit temps choisit en premier sa nouvelle carte au centre.</li>
+                    </ul>
+                </section>
+
+                <section>
+                    <h3 class="font-bold text-sm text-gray-900 border-l-4 border-blue-500 pl-2 mb-2">3. Symboles</h3>
+                    <div class="grid grid-cols-2 gap-2 bg-gray-50 p-2 rounded border border-gray-200">
+                        <div class="flex items-center gap-1"><div class="time-badge relative top-0 left-0 scale-75 shrink-0">42</div> <span>Temps</span></div>
+                        <div class="flex items-center gap-1"><div class="res-icon res-clue shrink-0">📜</div> <span>Indice</span></div>
+                        <div class="flex items-center gap-1"><div class="res-icon res-pierre shrink-0">🪨</div> <span>Pierre</span></div>
+                        <div class="flex items-center gap-1"><div class="res-icon res-chimere shrink-0">🐉</div> <span>Chimère</span></div>
+                        <div class="flex items-center gap-1"><div class="res-icon res-chardon shrink-0">🌿</div> <span>Chardon</span></div>
+                        <div class="flex items-center gap-1"><span class="text-yellow-500 text-lg shrink-0">⭐</span> <span>Points</span></div>
+                    </div>
+                </section>
+
+                <section class="bg-red-50 p-2 rounded border border-red-200">
+                    <h3 class="font-bold text-sm text-red-800 border-l-4 border-red-600 pl-2 mb-1">4. Le Décompte (Important)</h3>
+                    <p>Une Quête au bas d'une carte ne valide ses conditions qu'avec <b>ses propres ressources</b>, celles des <b>Sanctuaires</b>, et celles des cartes situées <b>À SA DROITE</b> (déjà révélées).</p>
+                </section>
+            </div>
+            
+            <button onclick="closeRules()" class="mt-3 bg-blue-600 active:bg-blue-500 text-white font-bold py-3 rounded-xl w-full shadow-md shrink-0 text-sm">
+                Fermer
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // --- CONSTANTS & DATA ---
+        const RES = ['pierre', 'chimere', 'chardon'];
+        const RES_ICONS = { 'pierre': '🪨', 'chimere': '🐉', 'chardon': '🌿', 'clue': '📜', 'pts': '⭐' };
+        
+        let state = {};
+
+        function randomInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+        
+        function generateRegions() {
+            let deck = [];
+            for (let i = 1; i <= 68; i++) {
+                let card = { id: `r${i}`, type: 'region', time: i, res: [], clue: 0, quest: null, color: `hsl(${randomInt(0,360)}, 60%, 85%)` };
+                
+                let numRes = Math.random() < 0.3 ? 0 : (Math.random() < 0.7 ? 1 : 2);
+                for(let j=0; j<numRes; j++) card.res.push(RES[randomInt(0,2)]);
+                
+                if (Math.random() < 0.2) card.clue = 1;
+
+                if (Math.random() < 0.4) {
+                    let reqType = RES[randomInt(0,2)];
+                    let reqQty = randomInt(1, 3);
+                    let pts = reqQty * randomInt(2, 4) + (card.clue ? -2 : 0);
+                    if(pts < 2) pts = 2;
+                    card.quest = { req: reqType, qty: reqQty, pts: pts };
+                }
+                deck.push(card);
+            }
+            return deck.sort(() => Math.random() - 0.5);
+        }
+
+        function generateSanctuaries() {
+            let deck = [];
+            for(let i=1; i<=40; i++) {
+                let typeRand = Math.random();
+                let type, val;
+                if (typeRand < 0.5) { type = 'res'; val = RES[randomInt(0,2)]; }
+                else if (typeRand < 0.8) { type = 'pts'; val = randomInt(2, 5); }
+                else { type = 'clue'; val = 1; }
+                deck.push({ id: `s${i}`, type: type, val: val });
+            }
+            return deck.sort(() => Math.random() - 0.5);
+        }
+
+        // --- GAME LOGIC ---
+        function startGame() {
+            document.getElementById('screen-home').classList.remove('active');
+            document.getElementById('screen-game').classList.add('active');
+
+            state = {
+                round: 1,
+                phase: 'PLAY',
+                regionDeck: generateRegions(),
+                sanctuaryDeck: generateSanctuaries(),
+                center: [],
+                human: { hand: [], tableau: [], sanctuaries: [], score: 0 },
+                ai: { hand: [], tableau: [], sanctuaries: [], score: 0 },
+                draftQueue: [], 
+                sanctuaryQueue: [] 
+            };
+
+            for(let i=0; i<3; i++) {
+                state.human.hand.push(state.regionDeck.pop());
+                state.ai.hand.push(state.regionDeck.pop());
+                state.center.push(state.regionDeck.pop());
+            }
+
+            renderAll();
+        }
+
+        const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+        function setBanner(msg, colorClass = 'bg-yellow-400 text-yellow-900') {
+            const banner = document.getElementById('status-banner');
+            banner.className = `w-full text-center font-bold py-1 shadow-md z-30 transition-transform text-sm ${colorClass}`;
+            banner.innerText = msg;
+            banner.classList.remove('hidden');
+        }
+        function hideBanner() { 
+            document.getElementById('status-banner').classList.add('hidden'); 
+        }
+
+        // PHASE 1: PLAY
+        async function playCard(cardIndex) {
+            if (state.phase !== 'PLAY') return;
+            
+            const playedCard = state.human.hand.splice(cardIndex, 1)[0];
+            const aiCardIndex = aiSelectCardToPlay();
+            const aiPlayedCard = state.ai.hand.splice(aiCardIndex, 1)[0];
+
+            setBanner("Révélation des cartes...", "bg-blue-500 text-white");
+            state.phase = 'REVEAL';
+            renderAll();
+            
+            await sleep(1000);
+
+            state.human.tableau.push(playedCard);
+            state.ai.tableau.push(aiPlayedCard);
+
+            state.sanctuaryQueue = [];
+            if (state.round > 1) {
+                const hPrev = state.human.tableau[state.human.tableau.length - 2];
+                if (hPrev && playedCard.time > hPrev.time) state.sanctuaryQueue.push('human');
+                
+                const aPrev = state.ai.tableau[state.ai.tableau.length - 2];
+                if (aPrev && aiPlayedCard.time > aPrev.time) state.sanctuaryQueue.push('ai');
+            }
+
+            if (playedCard.time < aiPlayedCard.time) {
+                state.draftQueue = ['human', 'ai'];
+            } else {
+                state.draftQueue = ['ai', 'human'];
+            }
+
+            // Scroll tableaus to right to see new cards
+            setTimeout(() => {
+                const hTab = document.getElementById('human-tableau');
+                const aTab = document.getElementById('ai-tableau');
+                hTab.scrollLeft = hTab.scrollWidth;
+                aTab.scrollLeft = aTab.scrollWidth;
+            }, 100);
+
+            processSanctuaryPhase();
+        }
+
+        // PHASE 2: SANCTUARIES
+        async function processSanctuaryPhase() {
+            state.phase = 'SANCTUARY';
+            renderAll();
+
+            if (state.sanctuaryQueue.length === 0) {
+                processDraftPhase();
+                return;
+            }
+
+            const currentPlayer = state.sanctuaryQueue[0];
+            const p = state[currentPlayer];
+            
+            let clues = 0;
+            p.tableau.forEach(c => clues += c.clue);
+            p.sanctuaries.forEach(s => { if(s.type==='clue') clues++; });
+            
+            const drawCount = 1 + clues;
+            let drawn = [];
+            for(let i=0; i<drawCount; i++) {
+                if(state.sanctuaryDeck.length > 0) drawn.push(state.sanctuaryDeck.pop());
+            }
+
+            if (currentPlayer === 'ai') {
+                setBanner("🤖 L'IA prend un Sanctuaire", "bg-blue-600 text-white");
+                await sleep(800);
+                p.sanctuaries.push(drawn[randomInt(0, drawn.length - 1)]);
+                state.sanctuaryQueue.shift();
+                processSanctuaryPhase();
+            } else {
+                setBanner("Vous trouvez un Sanctuaire !", "bg-orange-500 text-white");
+                showSanctuaryDraftModal(drawn);
+            }
+        }
+
+        function showSanctuaryDraftModal(cards) {
+            const container = document.getElementById('sanctuary-draft-options');
+            container.innerHTML = '';
+            cards.forEach((card, idx) => {
+                const el = document.createElement('div');
+                el.className = 'sanctuary draftable mx-1 mb-2 scale-110';
+                if(card.type === 'res') el.innerHTML = `<div class="res-icon res-${card.val}">${RES_ICONS[card.val]}</div>`;
+                if(card.type === 'pts') el.innerHTML = `<div class="text-sm text-yellow-600 font-black">+${card.val}⭐</div>`;
+                if(card.type === 'clue') el.innerHTML = `<div class="res-icon res-clue">📜</div>`;
+                
+                el.onclick = () => {
+                    state.human.sanctuaries.push(card);
+                    document.getElementById('modal-sanctuary').classList.add('hidden');
+                    state.sanctuaryQueue.shift();
+                    processSanctuaryPhase();
+                };
+                container.appendChild(el);
+            });
+            document.getElementById('modal-sanctuary').classList.remove('hidden');
+            document.getElementById('modal-sanctuary').classList.add('flex');
+        }
+
+        // PHASE 3: DRAFT
+        async function processDraftPhase() {
+            state.phase = 'DRAFT';
+            
+            if (state.draftQueue.length === 0) {
+                endRound();
+                return;
+            }
+
+            const currentPlayer = state.draftQueue[0];
+            
+            if (currentPlayer === 'ai') {
+                setBanner("🤖 L'IA choisit au centre...", "bg-blue-600 text-white");
+                renderAll();
+                await sleep(1000);
+                
+                let pickIdx = 0;
+                let hasQuestIdx = state.center.findIndex(c => c && c.quest);
+                if(hasQuestIdx !== -1) pickIdx = hasQuestIdx;
+                else {
+                    let maxTime = -1;
+                    state.center.forEach((c, i) => { if(c && c.time > maxTime) { maxTime = c.time; pickIdx = i;} });
+                }
+
+                state.ai.hand.push(state.center.splice(pickIdx, 1)[0]);
+                state.draftQueue.shift();
+                processDraftPhase();
+            } else {
+                setBanner("👇 Choisissez une carte au centre", "bg-green-600 text-white animate-pulse");
+                renderAll(); 
+            }
+        }
+
+        function draftCenterCard(idx) {
+            if (state.phase !== 'DRAFT' || state.draftQueue[0] !== 'human') return;
+            state.human.hand.push(state.center.splice(idx, 1)[0]);
+            state.draftQueue.shift();
+            processDraftPhase();
+        }
+
+        async function endRound() {
+            state.center = [];
+            for(let i=0; i<3; i++) {
+                if(state.regionDeck.length > 0) state.center.push(state.regionDeck.pop());
+            }
+
+            if (state.round >= 8) {
+                state.phase = 'SCORE';
+                startScoring();
+            } else {
+                state.round++;
+                state.phase = 'PLAY';
+                hideBanner();
+                renderAll();
+            }
+        }
+
+        // --- AI ---
+        function aiSelectCardToPlay() {
+            const hand = state.ai.hand;
+            if (state.round > 1 && state.ai.tableau.length > 0) {
+                const prevTime = state.ai.tableau[state.ai.tableau.length - 1].time;
+                let validCards = [];
+                hand.forEach((c, idx) => { if(c.time > prevTime) validCards.push({c, idx}); });
+                if (validCards.length > 0) {
+                    validCards.sort((a,b) => b.c.time - a.c.time);
+                    return validCards[0].idx;
+                }
+            }
+            let minIdx = 0;
+            for(let i=1; i<hand.length; i++) {
+                if(hand[i].time < hand[minIdx].time) minIdx = i;
+            }
+            return minIdx;
+        }
+
+        // --- SCORING ---
+        async function startScoring() {
+            setBanner("Décompte des points (Droite à Gauche) ⏳", "bg-purple-600 text-white");
+            renderAll(); 
+            
+            // Scroll completely to the right before starting
+            const hTab = document.getElementById('human-tableau');
+            const aTab = document.getElementById('ai-tableau');
+            hTab.scrollLeft = hTab.scrollWidth;
+            aTab.scrollLeft = aTab.scrollWidth;
+
+            await sleep(1500);
+
+            await scorePlayer('human');
+            await scorePlayer('ai');
+
+            document.getElementById('go-human-score').innerText = `${state.human.score} ⭐`;
+            document.getElementById('go-ai-score').innerText = `${state.ai.score} ⭐`;
+            
+            const title = document.getElementById('go-title');
+            let isWin = false;
+            if (state.human.score > state.ai.score) {
+                title.innerText = "Victoire ! 🏆"; title.className = "rowdies text-3xl text-green-600 mb-4";
+                isWin = true;
+            } else if (state.human.score < state.ai.score) {
+                title.innerText = "Défaite 💀"; title.className = "rowdies text-3xl text-red-600 mb-4";
+            } else {
+                title.innerText = "Égalité 🤝"; title.className = "rowdies text-3xl text-yellow-600 mb-4";
+            }
+
+            updateStats(isWin, state.human.score < state.ai.score);
+
+            document.getElementById('modal-gameover').classList.remove('hidden');
+            document.getElementById('modal-gameover').classList.add('flex');
+        }
+
+        async function scorePlayer(playerType) {
+            const p = state[playerType];
+            const tContainer = document.getElementById(`${playerType}-tableau`);
+            const cardsUI = tContainer.children;
+            
+            let availRes = { 'pierre': 0, 'chimere': 0, 'chardon': 0 };
+            p.sanctuaries.forEach(s => {
+                if(s.type === 'res') availRes[s.val]++;
+                if(s.type === 'pts') p.score += s.val;
+            });
+
+            for (let i = p.tableau.length - 1; i >= 0; i--) {
+                const card = p.tableau[i];
+                const cardUI = cardsUI[i];
+                
+                // Auto scroll to card on mobile
+                cardUI.scrollIntoView({ behavior: 'smooth', inline: 'center' });
+                
+                cardUI.classList.remove('flipped');
+                await sleep(600);
+
+                card.res.forEach(r => availRes[r]++);
+
+                let ptsEarned = 0;
+                if (card.quest) {
+                    if (availRes[card.quest.req] >= card.quest.qty) {
+                        ptsEarned = card.quest.pts;
+                        p.score += ptsEarned;
+                    }
+                }
+
+                if (ptsEarned > 0) {
+                    const floatEl = document.createElement('div');
+                    floatEl.className = 'floating-score';
+                    floatEl.innerText = `+${ptsEarned}`;
+                    cardUI.appendChild(floatEl);
+                    await sleep(1000); // extra wait to see score
+                }
+            }
+            await sleep(500);
+        }
+
+        // --- RENDERING ---
+        function getCardHTML(card, isPlayable, onClick, isFaceDown = false) {
+            if (!card) return `<div class="card bg-transparent border-dashed border-gray-400 opacity-50 shrink-0"></div>`;
+            
+            let resHTML = '';
+            card.res.forEach(r => { resHTML += `<div class="res-icon res-${r}">${RES_ICONS[r]}</div>`; });
+            
+            let questHTML = '';
+            if (card.quest) {
+                questHTML = `
+                    <div class="res-icon res-${card.quest.req} scale-75"></div>
+                    <span class="text-[9px] -ml-1">x${card.quest.qty}=</span>
+                    <span class="text-yellow-600">${card.quest.pts}</span><span class="text-[9px]">⭐</span>
+                `;
+            }
+
+            const clickAttr = isPlayable ? `onclick="${onClick}"` : '';
+            const playableClass = isPlayable ? 'playable' : '';
+            const flippedClass = isFaceDown ? 'flipped' : '';
+
+            return `
+                <div class="card scene ${playableClass}" ${clickAttr}>
+                    <div class="card-inner ${flippedClass}">
+                        <div class="card-front flex flex-col justify-between" style="background-color: ${card.color};">
+                            <div class="time-badge">${card.time}</div>
+                            ${card.clue ? `<div class="clue-badge">📜</div>` : ''}
+                            <div class="resources-area">${resHTML}</div>
+                            <div class="quest-area">${questHTML}</div>
+                        </div>
+                        <div class="card-back rounded-lg shadow-inner flex items-center justify-center">
+                            <span class="text-white/30 text-2xl font-bold">?</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function getSanctuaryHTML(sanctuary) {
+            if(sanctuary.type === 'res') return `<div class="sanctuary scale-[0.6] origin-top -ml-3"><div class="res-icon res-${sanctuary.val}">${RES_ICONS[sanctuary.val]}</div></div>`;
+            if(sanctuary.type === 'pts') return `<div class="sanctuary scale-[0.6] origin-top -ml-3"><div class="text-yellow-600 text-sm font-bold">+${sanctuary.val}⭐</div></div>`;
+            if(sanctuary.type === 'clue') return `<div class="sanctuary scale-[0.6] origin-top -ml-3"><div class="res-icon res-clue">📜</div></div>`;
+            return '';
+        }
+
+        function renderAll() {
+            if(!state.round) return;
+
+            document.getElementById('ui-round').innerText = state.round;
+            
+            let phaseStr = "Jeu";
+            if(state.phase === 'REVEAL') phaseStr = "Révélation";
+            if(state.phase === 'SANCTUARY') phaseStr = "Sanctuaire";
+            if(state.phase === 'DRAFT') phaseStr = "Draft";
+            if(state.phase === 'SCORE') phaseStr = "Décompte";
+            document.getElementById('ui-phase').innerText = phaseStr;
+
+            // Hand
+            const handContainer = document.getElementById('human-hand');
+            handContainer.innerHTML = '';
+            state.human.hand.forEach((c, i) => {
+                const canPlay = state.phase === 'PLAY';
+                handContainer.innerHTML += getCardHTML(c, canPlay, `playCard(${i})`);
+            });
+
+            // Tableaus
+            const isScoring = state.phase === 'SCORE';
+            const renderTableau = (player, containerId) => {
+                const container = document.getElementById(containerId);
+                container.innerHTML = '';
+                player.tableau.forEach((c) => {
+                    container.innerHTML += getCardHTML(c, false, '', isScoring);
+                });
+            };
+            
+            renderTableau(state.human, 'human-tableau');
+            renderTableau(state.ai, 'ai-tableau');
+
+            // Sanctuaries
+            document.getElementById('human-sanctuaries').innerHTML = state.human.sanctuaries.map(getSanctuaryHTML).join('');
+            document.getElementById('ai-sanctuaries').innerHTML = state.ai.sanctuaries.map(getSanctuaryHTML).join('');
+
+            // Center Draft
+            const centerContainer = document.getElementById('center-cards');
+            centerContainer.innerHTML = '';
+            const canDraft = state.phase === 'DRAFT' && state.draftQueue[0] === 'human';
+            state.center.forEach((c, i) => {
+                if(c) centerContainer.innerHTML += getCardHTML(c, canDraft, `draftCenterCard(${i})`);
+            });
+        }
+
+        // --- STATS & MODALS ---
+        function loadStats() {
+            document.getElementById('stat-wins').innerText = localStorage.getItem('fwm_wins') || 0;
+            document.getElementById('stat-losses').innerText = localStorage.getItem('fwm_losses') || 0;
+        }
+
+        function updateStats(win, loss) {
+            let wins = parseInt(localStorage.getItem('fwm_wins') || 0);
+            let losses = parseInt(localStorage.getItem('fwm_losses') || 0);
+            if(win) wins++;
+            if(loss) losses++;
+            localStorage.setItem('fwm_wins', wins);
+            localStorage.setItem('fwm_losses', losses);
+        }
+        
+        function openRules() {
+            document.getElementById('modal-rules').classList.remove('hidden');
+            document.getElementById('modal-rules').classList.add('flex');
+        }
+
+        function closeRules() {
+            document.getElementById('modal-rules').classList.add('hidden');
+            document.getElementById('modal-rules').classList.remove('flex');
+        }
+
+        window.onload = loadStats;
+    </script>
+</body>
+</html>

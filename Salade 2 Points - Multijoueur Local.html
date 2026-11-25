@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Salade 2 Points - Multijoueur</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700;900&display=swap');
+
+        body {
+            font-family: 'Fredoka', sans-serif;
+            background-color: #f0fdf4; /* green-50 */
+            color: #1f2937; /* gray-800 */
+            overflow: hidden;
+            touch-action: manipulation; /* Prevent swipe-to-refresh & double tap zoom */
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        .scroll-smooth-ios {
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+
+        @keyframes slideUp {
+            0% { transform: translateY(20px); opacity: 0; }
+            100% { transform: translateY(0); opacity: 1; }
+        }
+        .animate-slide-up { animation: slideUp 0.3s ease-out forwards; }
+        
+        @keyframes pop {
+            0% { transform: scale(0.9); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .animate-pop { animation: pop 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+    </style>
+</head>
+<body class="h-[100dvh] w-screen flex flex-col select-none overflow-hidden text-slate-800">
+
+    <div id="app" class="flex-1 w-full flex flex-col relative overflow-hidden h-full"></div>
+
+    <script>
+        // --- DATA & CONFIG ---
+        const VEG_TYPES = {
+            TOMATO: { id: 'tomato', name: 'Tomate', icon: '🍅', color: 'bg-red-500', text: 'text-white' },
+            LETTUCE: { id: 'lettuce', name: 'Laitue', icon: '🥗', color: 'bg-green-500', text: 'text-white' },
+            CARROT: { id: 'carrot', name: 'Carotte', icon: '🥕', color: 'bg-orange-500', text: 'text-white' },
+            MUSHROOM: { id: 'mushroom', name: 'Champignon', icon: '🍄', color: 'bg-stone-600', text: 'text-white' },
+            ONION: { id: 'onion', name: 'Oignon', icon: '🧅', color: 'bg-gray-100', text: 'text-slate-800' },
+            PEPPER: { id: 'pepper', name: 'Poivron', icon: '🫑', color: 'bg-yellow-400', text: 'text-slate-900' }
+        };
+
+        const VEG_LIST = Object.keys(VEG_TYPES);
+        const DEFAULT_NAMES = ["Tom", "Léa", "Alex", "Chloé", "Sam", "Max"];
+        const AI_NAMES = ["Robot-Céleri", "Robot-Radis", "Robot-Brocoli", "Robot-Navet", "Robot-Courgette"];
+
+        // --- STATE ---
+        let setupConfig = [
+            { name: "Joueur 1", isHuman: true },
+            { name: "Joueur 2", isHuman: true },
+        ];
+
+        let state = {
+            phase: 'SETUP', // SETUP, PASS_TURN, PLAYING, GAME_OVER
+            players: [], // { id, name, isHuman, veggies: [], points: [], score: 0 }
+            piles: [[], [], []],
+            market: [null, null, null, null, null, null], // Grid: Top row (0,1,2), Bottom row (3,4,5)
+            currentTurnIdx: 0,
+            selectedCards: [], // { source: 'pile'|'market', index: number }
+            hasFlippedThisTurn: false,
+            activeTab: 'VEGGIES', // VEGGIES, POINTS
+            passTurnPending: false, // For pass-and-play transition screen
+        };
+
+        let timers = [];
+        const safeTimeout = (cb, delay) => { 
+            const t = setTimeout(cb, delay); 
+            timers.push(t); 
+            return t; 
+        };
+
+        const clearAllTimers = () => {
+            timers.forEach(t => clearTimeout(t));
+            timers = [];
+        };
+
+        // --- PROCEDURAL CARD GENERATOR ---
+        const generatePointRule = (vegId) => {
+            const r = Math.random();
+            const otherVegs = VEG_LIST.filter(v => v !== vegId);
+            const randVeg = () => otherVegs[Math.floor(Math.random() * otherVegs.length)];
+            
+            const hugeIcon = (id) => `<span class="text-5xl sm:text-6xl drop-shadow-md leading-none mx-1 align-middle block mt-1">${VEG_TYPES[id].icon}</span>`;
+            const comboIcon = (id1, id2) => `
+                <div class="flex items-center justify-center gap-1 mt-2">
+                    <span class="text-5xl sm:text-6xl drop-shadow-md leading-none">${VEG_TYPES[id1].icon}</span>
+                    <span class="text-3xl font-black text-white/50">+</span>
+                    <span class="text-5xl sm:text-6xl drop-shadow-md leading-none">${VEG_TYPES[id2].icon}</span>
+                </div>`;
+            
+            if (r < 0.3) {
+                return { type: 'PER', veg: vegId, pts: 2, desc: `<span class="text-xl sm:text-2xl font-black">2 Pts /</span> ${hugeIcon(vegId)}` };
+            } else if (r < 0.5) {
+                const badVeg = randVeg();
+                return { type: 'PER_MINUS', veg: vegId, badVeg: badVeg, pts: 3, minus: -2, desc: `<div class="mb-2"><span class="text-lg sm:text-xl font-black text-green-300">3 Pts /</span> ${hugeIcon(vegId)}</div><div><span class="text-lg sm:text-xl font-black text-red-300">-2 Pts /</span> ${hugeIcon(badVeg)}</div>` };
+            } else if (r < 0.75) {
+                const veg2 = randVeg();
+                return { type: 'COMBO_2', veg1: vegId, veg2: veg2, pts: 5, desc: `<span class="text-xl sm:text-2xl font-black text-yellow-300">5 Pts Set:</span> ${comboIcon(vegId, veg2)}` };
+            } else if (r < 0.85) {
+                return { type: 'EVEN', veg: vegId, pts: 7, desc: `<span class="text-xl sm:text-2xl font-black text-cyan-300">7 Pts si PAIR</span> ${hugeIcon(vegId)}` };
+            } else {
+                return { type: 'MOST', veg: vegId, pts: 10, desc: `<span class="text-xl sm:text-2xl font-black text-fuchsia-300">10 Pts MAX</span> ${hugeIcon(vegId)}` };
+            }
+        };
+
+        const generateDeck = (playerCount) => {
+            let deck = [];
+            const cardsPerVeg = Math.min(18, playerCount * 3);
+            
+            let idCounter = 1;
+            VEG_LIST.forEach(veg => {
+                for (let i = 0; i < cardsPerVeg; i++) {
+                    deck.push({ id: idCounter++, veg: veg, rule: generatePointRule(veg) });
+                }
+            });
+
+            // Fisher-Yates Shuffle
+            for (let i = deck.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [deck[i], deck[j]] = [deck[j], deck[i]];
+            }
+            return deck;
+        };
+
+        // --- GAME LOGIC ---
+        const dispatch = (action, payload) => {
+            switch(action) {
+                case 'ADD_PLAYER_CONFIG':
+                    if (setupConfig.length < 6) {
+                        const nextId = setupConfig.length + 1;
+                        setupConfig.push({ name: `Joueur ${nextId}`, isHuman: true });
+                        render();
+                    }
+                    break;
+
+                case 'REMOVE_PLAYER_CONFIG':
+                    if (setupConfig.length > 2) {
+                        setupConfig.pop();
+                        render();
+                    }
+                    break;
+
+                case 'TOGGLE_PLAYER_TYPE':
+                    if (setupConfig[payload]) {
+                        setupConfig[payload].isHuman = !setupConfig[payload].isHuman;
+                        render();
+                    }
+                    break;
+
+                case 'UPDATE_PLAYER_NAME':
+                    if (setupConfig[payload.index]) {
+                        setupConfig[payload.index].name = payload.name;
+                    }
+                    break;
+
+                case 'START_GAME':
+                    clearAllTimers();
+                    state.players = setupConfig.map((cfg, i) => ({
+                        id: i,
+                        name: cfg.name.trim() || `Joueur ${i+1}`,
+                        isHuman: cfg.isHuman,
+                        veggies: [],
+                        points: [],
+                        score: 0
+                    }));
+                    
+                    const deck = generateDeck(state.players.length);
+                    state.piles = [[], [], []];
+                    deck.forEach((card, idx) => { state.piles[idx % 3].push(card); });
+                    
+                    state.market = [null, null, null, null, null, null];
+                    refillMarket();
+                    
+                    state.currentTurnIdx = 0;
+                    state.selectedCards = [];
+                    state.hasFlippedThisTurn = false;
+                    state.activeTab = 'VEGGIES';
+                    
+                    const firstPlayer = state.players[0];
+                    const countHumans = state.players.filter(p => p.isHuman).length;
+
+                    if (countHumans > 1 && firstPlayer.isHuman) {
+                        state.phase = 'PASS_TURN';
+                    } else {
+                        state.phase = 'PLAYING';
+                        if (!firstPlayer.isHuman) triggerAITurn();
+                    }
+                    render();
+                    break;
+
+                case 'READY_PASS_TURN':
+                    state.phase = 'PLAYING';
+                    render();
+                    break;
+
+                case 'SELECT_CARD':
+                    const currPlayer = state.players[state.currentTurnIdx];
+                    if (!currPlayer.isHuman || state.phase !== 'PLAYING') return;
+                    
+                    const { source, index } = payload;
+                    const existingIdx = state.selectedCards.findIndex(s => s.source === source && s.index === index);
+                    
+                    if (existingIdx > -1) {
+                        state.selectedCards.splice(existingIdx, 1);
+                    } else {
+                        if (source === 'pile') {
+                            state.selectedCards = [{ source, index }]; // Max 1 point card
+                        } else if (source === 'market') {
+                            state.selectedCards = state.selectedCards.filter(s => s.source === 'market');
+                            if (state.selectedCards.length < 2) {
+                                state.selectedCards.push({ source, index });
+                            } else {
+                                state.selectedCards[0] = { source, index }; // Replace first selected
+                            }
+                        }
+                    }
+                    render();
+                    break;
+
+                case 'CONFIRM_SELECTION':
+                    if (state.selectedCards.length === 0) return;
+                    processDraft(state.currentTurnIdx, state.selectedCards);
+                    break;
+
+                case 'SET_TAB':
+                    state.activeTab = payload;
+                    render();
+                    break;
+
+                case 'FLIP_CARD':
+                    const activeP = state.players[state.currentTurnIdx];
+                    if (activeP.isHuman && !state.hasFlippedThisTurn) {
+                        const card = activeP.points.splice(payload, 1)[0];
+                        activeP.veggies.push(card);
+                        state.hasFlippedThisTurn = true;
+                        render();
+                    }
+                    break;
+
+                case 'RESTART_CONFIG':
+                    clearAllTimers();
+                    state.phase = 'SETUP';
+                    render();
+                    break;
+            }
+        };
+
+        const processDraft = (playerIdx, selections) => {
+            const player = state.players[playerIdx];
+            
+            selections.forEach(sel => {
+                if (sel.source === 'pile') {
+                    player.points.push(state.piles[sel.index].pop());
+                } else if (sel.source === 'market') {
+                    player.veggies.push(state.market[sel.index]);
+                    state.market[sel.index] = null;
+                }
+            });
+
+            state.selectedCards = [];
+            state.hasFlippedThisTurn = false;
+            
+            refillMarket();
+            
+            if (checkEndGame()) {
+                calculateAllScores();
+                state.phase = 'GAME_OVER';
+                render();
+            } else {
+                state.currentTurnIdx = (state.currentTurnIdx + 1) % state.players.length;
+                const nextPlayer = state.players[state.currentTurnIdx];
+                const countHumans = state.players.filter(p => p.isHuman).length;
+
+                // Pass and Play curtain for multi-human games when transitioning to a Human player
+                if (countHumans > 1 && nextPlayer.isHuman) {
+                    state.phase = 'PASS_TURN';
+                    render();
+                } else {
+                    state.phase = 'PLAYING';
+                    render();
+                    if (!nextPlayer.isHuman) {
+                        triggerAITurn();
+                    }
+                }
+            }
+        };
+
+        const refillMarket = () => {
+            for (let i = 0; i < 6; i++) {
+                if (state.market[i] === null) {
+                    let targetPile = i % 3;
+                    
+                    if (state.piles[targetPile].length === 0) {
+                        let maxLen = -1, largestPileIdx = -1;
+                        for(let p=0; p<3; p++){
+                            if(state.piles[p].length > maxLen) {
+                                maxLen = state.piles[p].length;
+                                largestPileIdx = p;
+                            }
+                        }
+                        if (maxLen > 1) {
+                            const half = Math.floor(maxLen / 2);
+                            const bottomHalf = state.piles[largestPileIdx].splice(0, half);
+                            state.piles[targetPile] = bottomHalf;
+                        }
+                    }
+
+                    if (state.piles[targetPile].length > 0) {
+                        state.market[i] = state.piles[targetPile].pop();
+                    }
+                }
+            }
+        };
+
+        const checkEndGame = () => {
+            return state.piles.every(p => p.length === 0) && state.market.every(m => m === null);
+        };
+
+        const triggerAITurn = () => {
+            safeTimeout(() => {
+                if (state.phase !== 'PLAYING') return;
+                const ai = state.players[state.currentTurnIdx];
+                if (ai.isHuman) return;
+
+                let selections = [];
+                
+                let validMarkets = [];
+                state.market.forEach((c, idx) => { if(c) validMarkets.push(idx); });
+                
+                let validPiles = [];
+                state.piles.forEach((p, idx) => { if(p.length > 0) validPiles.push(idx); });
+
+                const takePoint = Math.random() < 0.25 && validPiles.length > 0;
+                
+                if (takePoint || validMarkets.length === 0) {
+                    const pIdx = validPiles[Math.floor(Math.random() * validPiles.length)];
+                    selections = [{ source: 'pile', index: pIdx }];
+                } else {
+                    const m1 = validMarkets.splice(Math.floor(Math.random() * validMarkets.length), 1)[0];
+                    selections.push({ source: 'market', index: m1 });
+                    if (validMarkets.length > 0) {
+                        const m2 = validMarkets.splice(Math.floor(Math.random() * validMarkets.length), 1)[0];
+                        selections.push({ source: 'market', index: m2 });
+                    }
+                }
+                processDraft(state.currentTurnIdx, selections);
+            }, 1000);
+        };
+
+        // --- SCORING ---
+        const countVeggies = (player) => {
+            let counts = {};
+            VEG_LIST.forEach(v => counts[v] = 0);
+            player.veggies.forEach(c => counts[c.veg]++);
+            return counts;
+        };
+
+        const calculateAllScores = () => {
+            const allCounts = state.players.map(p => countVeggies(p));
+            
+            state.players.forEach((player, pIdx) => {
+                let score = 0;
+                const myCounts = allCounts[pIdx];
+
+                player.points.forEach(ptCard => {
+                    const rule = ptCard.rule;
+                    if (rule.type === 'PER') {
+                        score += myCounts[rule.veg] * rule.pts;
+                    } else if (rule.type === 'PER_MINUS') {
+                        score += (myCounts[rule.veg] * rule.pts) + (myCounts[rule.badVeg] * rule.minus);
+                    } else if (rule.type === 'COMBO_2') {
+                        score += Math.min(myCounts[rule.veg1], myCounts[rule.veg2]) * rule.pts;
+                    } else if (rule.type === 'EVEN') {
+                        if (myCounts[rule.veg] % 2 === 0) score += rule.pts;
+                    } else if (rule.type === 'MOST') {
+                        let hasMost = true;
+                        for (let i = 0; i < state.players.length; i++) {
+                            if (i !== pIdx && allCounts[i][rule.veg] > myCounts[rule.veg]) hasMost = false;
+                        }
+                        if (hasMost) score += rule.pts;
+                    }
+                });
+                player.score = score;
+            });
+        };
+
+        // --- RENDERING ---
+        window.handleAction = (action, payload) => dispatch(action, payload);
+
+        const renderCardHTML = (card, mode, source, index, isSelected = false) => {
+            if (!card) return `<div class="w-full aspect-[2.5/3.5] bg-black/5 rounded-xl border-2 border-dashed border-black/10"></div>`;
+            
+            const vt = VEG_TYPES[card.veg];
+            let inner = '';
+            
+            if (mode === 'POINT') {
+                inner = `
+                    <div class="absolute inset-0 bg-slate-800 text-white rounded-xl shadow-md border-2 ${isSelected ? 'border-yellow-400 border-4' : 'border-slate-900'} flex flex-col p-1 sm:p-2 overflow-hidden">
+                        <div class="flex justify-between w-full text-lg sm:text-xl opacity-90 font-black leading-none pointer-events-none"><span>${vt.icon}</span><span>${vt.icon}</span></div>
+                        <div class="text-center flex-1 flex flex-col items-center justify-center w-full break-words pointer-events-none text-[10px] sm:text-xs leading-tight px-1">${card.rule.desc}</div>
+                        <div class="flex justify-between w-full text-lg sm:text-xl opacity-90 font-black leading-none pointer-events-none"><span>${vt.icon}</span><span>${vt.icon}</span></div>
+                    </div>`;
+            } else {
+                inner = `
+                    <div class="absolute inset-0 ${vt.color} ${vt.text} rounded-xl shadow-md border-2 ${isSelected ? 'border-yellow-400 shadow-[0_0_15px_rgba(250,204,21,0.8)]' : 'border-black/20'} flex flex-col items-center justify-center overflow-hidden">
+                        <div class="text-5xl sm:text-7xl drop-shadow-lg pointer-events-none">${vt.icon}</div>
+                    </div>`;
+            }
+
+            const clickAttr = (source !== 'none') ? `onclick="window.handleAction('SELECT_CARD', {source: '${source}', index: ${index}})"` : '';
+            const transform = isSelected ? 'transform: translateY(-4px);' : '';
+
+            return `
+                <button type="button" ${clickAttr} class="relative w-full aspect-[2.5/3.5] outline-none appearance-none cursor-pointer select-none transition-transform duration-200 block p-0 m-0" style="${transform}">
+                    <div class="pointer-events-none w-full h-full flex flex-col">
+                        ${inner}
+                    </div>
+                </button>`;
+        };
+
+        const render = () => {
+            const app = document.getElementById('app');
+
+            // --- SETUP SCREEN ---
+            if (state.phase === 'SETUP') {
+                app.innerHTML = `
+                    <div class="min-h-full flex flex-col items-center justify-center p-4 sm:p-6 text-center overflow-y-auto">
+                        <h1 class="text-4xl sm:text-6xl font-black text-green-600 mb-1 drop-shadow-sm leading-tight">Salade<br>2 Points</h1>
+                        <p class="text-slate-500 mb-6 font-medium text-sm sm:text-lg">Partie en local & IA</p>
+                        
+                        <div class="bg-white p-5 sm:p-6 rounded-3xl shadow-xl border border-green-100 w-full max-w-md flex flex-col gap-4">
+                            <div class="flex justify-between items-center border-b pb-3">
+                                <h2 class="text-lg sm:text-xl font-bold text-slate-700">Configuration des Joueurs</h2>
+                                <span class="bg-green-100 text-green-800 text-xs font-black px-2.5 py-1 rounded-full">${setupConfig.length} Joueurs</span>
+                            </div>
+
+                            <div class="flex flex-col gap-2.5 max-h-[40vh] overflow-y-auto custom-scrollbar pr-1">
+                                ${setupConfig.map((cfg, idx) => `
+                                    <div class="flex items-center gap-2 bg-slate-50 p-2.5 rounded-2xl border border-slate-200">
+                                        <span class="text-xs font-black text-slate-400 w-5">${idx + 1}</span>
+                                        <input type="text" 
+                                            value="${cfg.name}" 
+                                            onchange="window.handleAction('UPDATE_PLAYER_NAME', {index: ${idx}, name: this.value})"
+                                            class="flex-1 bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-sm font-bold text-slate-700 focus:outline-none focus:border-green-500"
+                                            placeholder="Nom..."
+                                        />
+                                        <button type="button" 
+                                            onclick="window.handleAction('TOGGLE_PLAYER_TYPE', ${idx})"
+                                            class="px-3 py-1.5 rounded-xl font-bold text-xs transition-colors ${cfg.isHuman ? 'bg-indigo-500 text-white' : 'bg-amber-500 text-white'}">
+                                            ${cfg.isHuman ? '👤 Humain' : '🤖 IA'}
+                                        </button>
+                                    </div>
+                                `).join('')}
+                            </div>
+
+                            <div class="flex gap-2">
+                                <button type="button" 
+                                    onclick="window.handleAction('ADD_PLAYER_CONFIG')" 
+                                    ${setupConfig.length >= 6 ? 'disabled' : ''}
+                                    class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 disabled:opacity-40 text-slate-700 font-bold rounded-xl text-sm transition-transform active:scale-95">
+                                    + Ajouter Joueur
+                                </button>
+                                <button type="button" 
+                                    onclick="window.handleAction('REMOVE_PLAYER_CONFIG')" 
+                                    ${setupConfig.length <= 2 ? 'disabled' : ''}
+                                    class="py-2.5 px-4 bg-red-50 hover:bg-red-100 disabled:opacity-40 text-red-600 font-bold rounded-xl text-sm transition-transform active:scale-95">
+                                    - Retirer
+                                </button>
+                            </div>
+
+                            <button type="button" 
+                                onclick="window.handleAction('START_GAME')" 
+                                class="w-full py-4 mt-2 bg-green-500 hover:bg-green-600 text-white font-black text-lg sm:text-xl rounded-2xl shadow-[0_10px_20px_rgba(34,197,94,0.3)] transition-all active:scale-95">
+                                Lancer la partie !
+                            </button>
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+
+            // --- PASS TURN SCREEN (Local Multi privacy) ---
+            if (state.phase === 'PASS_TURN') {
+                const nextPlayer = state.players[state.currentTurnIdx];
+                app.innerHTML = `
+                    <div class="min-h-full flex flex-col items-center justify-center p-6 text-center bg-slate-900 text-white z-50">
+                        <div class="bg-slate-800 p-8 rounded-3xl border border-slate-700 max-w-xs w-full animate-pop flex flex-col items-center">
+                            <span class="text-6xl mb-4">📱</span>
+                            <h2 class="text-2xl font-black text-slate-300 mb-1">Passez l'appareil à</h2>
+                            <p class="text-3xl font-black text-green-400 mb-6">${nextPlayer.name}</p>
+                            <button type="button" 
+                                onclick="window.handleAction('READY_PASS_TURN')"
+                                class="w-full py-4 bg-green-500 hover:bg-green-400 text-white font-black text-lg rounded-2xl shadow-lg active:scale-95 transition-transform">
+                                Je suis prêt !
+                            </button>
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+
+            // --- MAIN PLAYING SCREEN ---
+            const activePlayer = state.players[state.currentTurnIdx];
+            const isHumanTurn = activePlayer.isHuman;
+            const validSelection = state.selectedCards.length > 0 && 
+                ((state.selectedCards[0].source === 'pile' && state.selectedCards.length === 1) || 
+                 (state.selectedCards[0].source === 'market' && state.selectedCards.length === 2) ||
+                 (state.selectedCards[0].source === 'market' && state.selectedCards.length === 1 && state.market.filter(m=>m).length === 1));
+
+            const playerVeggies = countVeggies(activePlayer);
+
+            let html = `
+                <!-- TOP HEADER: PLAYER LIST & TURN STATUS -->
+                <div class="bg-white shadow-sm border-b border-green-100 shrink-0">
+                    <div class="flex justify-between items-center px-3 py-1.5 border-b border-slate-100">
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs font-bold bg-green-100 text-green-800 px-2 py-0.5 rounded-full">Tour actuel</span>
+                            <span class="text-sm font-black ${activePlayer.isHuman ? 'text-indigo-600' : 'text-amber-600'}">${activePlayer.name} ${activePlayer.isHuman ? '👤' : '🤖'}</span>
+                        </div>
+                        <button onclick="window.handleAction('RESTART_CONFIG')" class="text-xs font-bold text-slate-400 hover:text-slate-600">⚙️ Menu</button>
+                    </div>
+
+                    <div class="flex gap-2 p-2 overflow-x-auto hide-scrollbar items-center">
+                        ${state.players.map((p) => {
+                            const isCurrent = p.id === activePlayer.id;
+                            return `
+                                <div class="flex flex-col items-center min-w-[70px] bg-slate-50 border-2 ${isCurrent ? 'border-green-500 bg-green-50 scale-105 shadow-sm' : 'border-slate-200'} rounded-xl p-1.5 transition-all">
+                                    <span class="text-[11px] font-bold text-slate-700 truncate w-full text-center flex items-center justify-center gap-0.5">
+                                        ${p.name}
+                                    </span>
+                                    <div class="flex gap-1.5 mt-0.5 text-xs font-black text-slate-500">
+                                        <span>🥗 ${p.veggies.length}</span>
+                                        <span>🎯 ${p.points.length}</span>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+
+                <!-- MIDDLE: MARKET -->
+                <div class="flex-1 min-h-0 overflow-y-auto custom-scrollbar scroll-smooth-ios relative flex flex-col items-center p-2 sm:p-4 pb-28">
+                    <div class="grid grid-cols-3 gap-2 sm:gap-3 w-full max-w-md sm:max-w-lg mx-auto">
+                        <!-- Piles (Row 1) -->
+                        ${[0, 1, 2].map(i => {
+                            const p = state.piles[i];
+                            const card = p.length > 0 ? p[p.length - 1] : null;
+                            const isSelected = state.selectedCards.some(s => s.source === 'pile' && s.index === i);
+                            return `
+                                <div class="relative w-full">
+                                    ${card ? `<div class="absolute -top-3 left-1/2 transform -translate-x-1/2 bg-slate-900 text-white text-xs font-black px-2 py-0.5 rounded-full z-10 shadow-md">${p.length}</div>` : ''}
+                                    ${renderCardHTML(card, 'POINT', card && isHumanTurn ? 'pile' : 'none', i, isSelected)}
+                                </div>
+                            `;
+                        }).join('')}
+
+                        <!-- Market (Row 2 & 3) -->
+                        ${[0, 1, 2, 3, 4, 5].map(i => {
+                            const card = state.market[i];
+                            const isSelected = state.selectedCards.some(s => s.source === 'market' && s.index === i);
+                            return `
+                                <div class="w-full">
+                                    ${renderCardHTML(card, 'VEGGIE', card && isHumanTurn ? 'market' : 'none', i, isSelected)}
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+
+                <!-- DRAFT BUTTON -->
+                ${isHumanTurn ? `
+                    <div class="absolute inset-x-0 bottom-64 sm:bottom-72 flex justify-center pointer-events-none z-30">
+                        <button type="button" onclick="window.handleAction('CONFIRM_SELECTION')" class="pointer-events-auto px-8 py-3 sm:px-10 sm:py-4 bg-yellow-400 hover:bg-yellow-300 text-yellow-950 font-black text-lg sm:text-xl rounded-full shadow-[0_10px_20px_rgba(250,204,21,0.4)] border-4 border-yellow-300 transition-all active:scale-95 ${validSelection ? 'translate-y-0 opacity-100 animate-slide-up' : 'translate-y-10 opacity-0'}" style="touch-action: manipulation;">
+                            Prendre ${state.selectedCards.length === 1 && state.selectedCards[0].source === 'pile' ? 'l\'Objectif' : 'les Légumes'}
+                        </button>
+                    </div>
+                ` : `
+                    <div class="absolute inset-x-0 bottom-64 sm:bottom-72 flex justify-center z-30 pointer-events-none">
+                        <span class="bg-slate-800/90 text-white text-base font-bold px-6 py-3 rounded-full backdrop-blur-sm animate-pulse shadow-lg">Tour de ${activePlayer.name}...</span>
+                    </div>
+                `}
+
+                <!-- BOTTOM: ACTIVE PLAYER HAND -->
+                <div class="bg-white border-t border-slate-200 shrink-0 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-[0_-10px_30px_rgba(0,0,0,0.05)] rounded-t-3xl relative z-40 w-full h-64 sm:h-72 flex flex-col">
+                    <!-- Tabs -->
+                    <div class="flex border-b border-slate-100 shrink-0">
+                        <button type="button" onclick="window.handleAction('SET_TAB', 'VEGGIES')" class="flex-1 py-3 text-base font-black transition-colors ${state.activeTab === 'VEGGIES' ? 'text-green-600 border-b-4 border-green-500 bg-green-50/50' : 'text-slate-400'}">Légumes (${activePlayer.veggies.length})</button>
+                        <button type="button" onclick="window.handleAction('SET_TAB', 'POINTS')" class="flex-1 py-3 text-base font-black transition-colors ${state.activeTab === 'POINTS' ? 'text-slate-800 border-b-4 border-slate-800 bg-slate-50' : 'text-slate-400'}">Objectifs (${activePlayer.points.length})</button>
+                    </div>
+
+                    <!-- Content -->
+                    <div class="flex-1 overflow-x-auto hide-scrollbar scroll-smooth-ios p-3 flex items-start gap-3">
+                        ${state.activeTab === 'VEGGIES' ? `
+                            <div class="grid grid-flow-col auto-cols-[70px] sm:auto-cols-[90px] grid-rows-2 gap-2 sm:gap-3 h-full pb-2">
+                                ${VEG_LIST.map(v => {
+                                    const count = playerVeggies[v];
+                                    const vt = VEG_TYPES[v];
+                                    return `
+                                        <div class="relative w-full h-full ${vt.color} ${vt.text} rounded-2xl flex items-center justify-center shadow-md border-2 border-black/10 transition-all ${count > 0 ? 'opacity-100 scale-100' : 'opacity-40 grayscale scale-95'}">
+                                            <span class="text-4xl sm:text-5xl drop-shadow-md pointer-events-none">${vt.icon}</span>
+                                            ${count > 0 ? `<div class="absolute -top-2 -right-2 bg-slate-900 text-white text-sm font-black w-8 h-8 flex items-center justify-center rounded-full border-2 border-white shadow-lg pointer-events-none">${count}</div>` : ''}
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        ` : `
+                            ${activePlayer.points.length === 0 ? `<div class="text-base font-bold text-slate-400 w-full text-center mt-10">Aucun objectif. Piochez-en un au marché !</div>` : ''}
+                            ${activePlayer.points.map((card, i) => `
+                                <div class="flex flex-col gap-2 shrink-0 w-28 sm:w-36">
+                                    ${renderCardHTML(card, 'POINT', 'none', i)}
+                                    ${isHumanTurn && !state.hasFlippedThisTurn ? `
+                                        <button type="button" onclick="window.handleAction('FLIP_CARD', ${i})" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs sm:text-sm py-2 sm:py-2.5 rounded-xl border border-slate-300 shadow-sm active:scale-95 transition-transform touch-manipulation">
+                                            🔄 Transfo.
+                                        </button>
+                                    ` : '<div class="h-8 sm:h-10"></div>'}
+                                </div>
+                            `).join('')}
+                            <div class="shrink-0 w-4 h-full"></div>
+                        `}
+                    </div>
+                </div>
+
+                <!-- GAME OVER MODAL -->
+                ${state.phase === 'GAME_OVER' ? `
+                    <div class="absolute inset-0 bg-slate-900/95 z-50 flex flex-col items-center justify-center p-6 backdrop-blur-md">
+                        <div class="bg-white p-6 sm:p-8 rounded-[2rem] w-full max-w-md shadow-2xl animate-pop text-center">
+                            <h2 class="text-4xl font-black text-green-600 mb-6">Score Final</h2>
+                            <div class="flex flex-col gap-3 mb-8 max-h-[50vh] overflow-y-auto custom-scrollbar">
+                                ${[...state.players].sort((a,b) => b.score - a.score).map((p, i) => `
+                                    <div class="flex justify-between items-center bg-slate-50 p-3.5 rounded-2xl border-2 ${p.isHuman ? 'border-indigo-400 bg-indigo-50/30' : 'border-slate-100'}">
+                                        <div class="flex items-center gap-3">
+                                            <span class="text-xl font-black ${i === 0 ? 'text-yellow-500' : 'text-slate-300'} w-6 text-left">#${i+1}</span>
+                                            <div class="flex flex-col text-left">
+                                                <span class="font-bold text-base text-slate-800">${p.name}</span>
+                                                <span class="text-xs font-semibold text-slate-400">${p.isHuman ? 'Humain' : 'IA'}</span>
+                                            </div>
+                                        </div>
+                                        <span class="font-black text-2xl text-green-600">${p.score} <span class="text-xs text-slate-400">pts</span></span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                            <button type="button" onclick="window.handleAction('RESTART_CONFIG')" class="w-full py-4 bg-green-500 hover:bg-green-600 text-white font-black rounded-2xl shadow-[0_10px_20px_rgba(34,197,94,0.3)] active:scale-95 transition-transform text-lg touch-manipulation">Nouvelle Partie</button>
+                        </div>
+                    </div>
+                ` : ''}
+            `;
+            
+            app.innerHTML = html;
+        };
+
+        // Init
+        render();
+    </script>
+</body>
+</html>

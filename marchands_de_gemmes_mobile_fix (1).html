@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Marchands de Gemmes - Mobile</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700&family=Lato:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        /* CSS Reset & Variables */
+        :root {
+            --w: #f8f9fa; --u: #3b82f6; --g: #22c55e; 
+            --r: #ef4444; --b: #374151; --gold: #fbbf24;
+            --bg-dark: #111827; --bg-panel: #1f2937; --border: #374151;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body, html {
+            height: 100%; width: 100%;
+            background-color: var(--bg-dark); color: #e2e8f0;
+            font-family: 'Lato', sans-serif;
+            overflow: hidden; user-select: none; -webkit-user-select: none;
+        }
+        h1, h2, h3, .title-font { font-family: 'Cinzel', serif; }
+
+        /* Main Layout */
+        #app {
+            display: flex; flex-direction: column; height: 100dvh; width: 100vw;
+        }
+        
+        /* Top: Opponent Area (Compact) */
+        #opponent-area {
+            flex: 0 0 auto; background: var(--bg-panel); padding: 8px 12px;
+            border-bottom: 1px solid var(--border); box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+            z-index: 10;
+        }
+        
+        /* Middle: Board Area */
+        #board-area {
+            flex: 1 1 auto; overflow-y: auto; padding: 12px 10px;
+            display: flex; flex-direction: column; gap: 15px;
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        /* Bottom: Active Player Area */
+        #active-player-area {
+            flex: 0 0 auto; background: var(--bg-panel); padding: 10px 15px 20px 15px;
+            border-top: 2px solid var(--gold); box-shadow: 0 -2px 10px rgba(0,0,0,0.5);
+            z-index: 10;
+        }
+
+        /* Generic Flex Classes */
+        .flex-row { display: flex; flex-direction: row; align-items: center; }
+        .flex-col { display: flex; flex-direction: column; }
+        .space-between { justify-content: space-between; }
+        .gap-2 { gap: 8px; }
+        .gap-3 { gap: 12px; }
+        .w-full { width: 100%; }
+
+        /* Horizontal Scrolling Rows */
+        .scroll-row {
+            display: flex; flex-direction: row; overflow-x: auto; flex-wrap: nowrap;
+            gap: 12px; padding-bottom: 8px; scroll-behavior: smooth; align-items: center;
+        }
+        .scroll-row::-webkit-scrollbar { display: none; } /* Hide scrollbar */
+
+        /* Tokens */
+        .token-container { display: flex; flex-wrap: wrap; gap: 6px; }
+        .token {
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            font-weight: bold; flex-shrink: 0; border: 2px solid rgba(255,255,255,0.2);
+            box-shadow: inset 0 -2px 4px rgba(0,0,0,0.4), 0 2px 4px rgba(0,0,0,0.5);
+        }
+        .token.xs { width: 20px; height: 20px; font-size: 10px; }
+        .token.sm { width: 28px; height: 28px; font-size: 12px; }
+        .token.lg { width: 42px; height: 42px; font-size: 16px; cursor: pointer; transition: transform 0.1s; }
+        .token.lg:active { transform: scale(0.9); }
+        .token.disabled { opacity: 0.3; pointer-events: none; filter: grayscale(50%); }
+        
+        .c-w { background: var(--w); color: #000; border-color: #ccc; }
+        .c-u { background: var(--u); color: #fff; }
+        .c-g { background: var(--g); color: #fff; }
+        .c-r { background: var(--r); color: #fff; }
+        .c-b { background: var(--b); color: #fff; border-color: #555; }
+        .c-gold { background: var(--gold); color: #000; }
+
+        /* Cards */
+        .card {
+            min-width: 100px; height: 140px; flex-shrink: 0;
+            background: linear-gradient(135deg, #374151, #111827);
+            border: 1px solid #4b5563; border-radius: 8px;
+            display: flex; flex-direction: column; justify-content: space-between;
+            position: relative; box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            cursor: pointer; transition: border-color 0.2s;
+        }
+        .card.reserved { min-width: 60px; height: 85px; border-style: dashed; }
+        .card:active { border-color: var(--gold); }
+        
+        .card-header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 5px; background: rgba(255,255,255,0.05);
+            border-bottom: 1px solid rgba(255,255,255,0.1); border-radius: 8px 8px 0 0;
+        }
+        .card-pts { font-family: 'Cinzel'; font-size: 18px; font-weight: bold; text-shadow: 1px 1px 2px #000; width: 18px; text-align: center; }
+        .reserved .card-pts { font-size: 14px; }
+        
+        .card-bonus {
+            width: 22px; height: 22px; border-radius: 50%;
+            border: 1px solid rgba(255,255,255,0.3); box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        }
+        .reserved .card-bonus { width: 16px; height: 16px; }
+        
+        .card-costs { padding: 4px; display: flex; flex-direction: column; gap: 2px; position: absolute; bottom: 0; left: 0;}
+        .cost-badge {
+            width: 18px; height: 18px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 10px; font-weight: bold; box-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+        }
+        .reserved .cost-badge { width: 14px; height: 14px; font-size: 9px; }
+
+        /* Nobles */
+        .noble {
+            min-width: 70px; height: 70px; background: #4b5563;
+            border: 2px solid #9ca3af; border-radius: 8px; flex-shrink: 0;
+            position: relative; box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        .noble-pts { position: absolute; top: 2px; left: 5px; font-family: 'Cinzel'; font-size: 20px; font-weight: bold; }
+        .noble-reqs { position: absolute; bottom: 4px; left: 4px; display: flex; flex-direction: column; gap: 2px; }
+        .noble-req { width: 14px; height: 14px; border-radius: 2px; font-size: 9px; display: flex; align-items: center; justify-content: center; font-weight: bold; }
+
+        /* Modals & Overlays */
+        .modal-bg {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100dvh;
+            background: rgba(0,0,0,0.8); backdrop-filter: blur(5px);
+            display: flex; justify-content: center; align-items: center;
+            z-index: 100; opacity: 0; pointer-events: none; transition: opacity 0.2s;
+        }
+        .modal-bg.active { opacity: 1; pointer-events: auto; }
+        .modal-box {
+            background: #1f2937; border: 2px solid #4b5563; border-radius: 12px;
+            padding: 20px; width: 90%; max-width: 320px; 
+            display: flex; flex-direction: column; align-items: center; /* FIXED FLEX */
+            box-shadow: 0 10px 25px rgba(0,0,0,0.8); position: relative;
+        }
+        .close-btn { position: absolute; top: 10px; right: 15px; font-size: 24px; color: #9ca3af; cursor: pointer; border: none; background: none; }
+        
+        .btn-container { display: flex; flex-direction: column; gap: 10px; width: 100%; }
+        
+        .btn {
+            background: #3b82f6; color: white; border: none; border-radius: 8px;
+            padding: 12px; font-size: 16px; font-weight: bold; cursor: pointer;
+            width: 100%; box-sizing: border-box; transition: background 0.1s;
+        }
+        .btn:active { background: #2563eb; }
+        .btn.gold { background: #eab308; color: black; }
+        .btn.green { background: #22c55e; color: white; }
+        .btn.red { background: #ef4444; color: white; }
+        .btn:disabled { background: #4b5563; color: #9ca3af; pointer-events: none; }
+
+        /* Notifications */
+        #status-banner {
+            position: fixed; top: 0; left: 0; width: 100%;
+            background: #2563eb; color: white; text-align: center; padding: 8px;
+            font-weight: bold; font-size: 14px; z-index: 200;
+            transform: translateY(-100%); transition: transform 0.3s ease-out;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+        }
+        #status-banner.show { transform: translateY(0); }
+
+        /* Typography Helpers */
+        .text-sm { font-size: 12px; color: #9ca3af; }
+        .text-lg { font-size: 18px; font-weight: bold; }
+        .text-xl { font-size: 24px; font-weight: bold; color: var(--gold); }
+        .text-center { text-align: center; }
+        .mb-1 { margin-bottom: 5px; } .mb-2 { margin-bottom: 10px; } .mb-3 { margin-bottom: 15px; }
+
+        /* Screens */
+        .screen { display: none; height: 100dvh; width: 100vw; flex-direction: column; align-items: center; justify-content: center; padding: 20px; text-align: center; }
+        .screen.active { display: flex; }
+    </style>
+</head>
+<body>
+
+    <!-- Notification Top -->
+    <div id="status-banner">Message...</div>
+
+    <!-- ECRAN ACCUEIL -->
+    <div id="screen-home" class="screen active">
+        <h1 class="title-font text-xl mb-1" style="font-size: 40px; line-height: 1.1;">Marchands<br>de Gemmes</h1>
+        <p class="text-sm mb-3">Sélectionnez votre mode de jeu</p>
+        
+        <div class="btn-container">
+            <button class="btn" onclick="startGame('ai')">🤖 Jouer contre l'IA</button>
+            <button class="btn green" onclick="startGame('pvp')">👥 Jouer à 2 (Local)</button>
+            <button class="btn gold" onclick="openModal('modal-rules')" style="margin-top: 10px;">📖 Règles</button>
+        </div>
+    </div>
+
+    <!-- ECRAN JEU (Layout Principal) -->
+    <div id="app" style="display: none;">
+        
+        <!-- Opponent Area (Top, always the non-active player) -->
+        <div id="opponent-area">
+            <div class="flex-row space-between mb-1">
+                <div class="flex-row gap-2">
+                    <span class="text-lg" id="opp-name">Adversaire</span>
+                    <span class="text-sm">Tour <span id="ui-round">1</span></span>
+                </div>
+                <div class="title-font text-xl"><span id="opp-score">0</span> pts</div>
+            </div>
+            <div class="flex-col gap-1">
+                <div class="flex-row space-between w-full">
+                    <span class="text-sm">Bonus:</span>
+                    <div class="token-container" id="opp-bonuses"></div>
+                </div>
+                <div class="flex-row space-between w-full">
+                    <span class="text-sm">Jetons:</span>
+                    <div class="token-container" id="opp-tokens"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Board Area (Middle) -->
+        <div id="board-area">
+            <!-- Nobles -->
+            <div>
+                <div class="text-sm mb-1">Nobles</div>
+                <div class="scroll-row" id="board-nobles"></div>
+            </div>
+
+            <!-- Cards Tiers -->
+            <div id="board-cards" class="flex-col gap-3">
+                <!-- Injected via JS -->
+            </div>
+
+            <!-- Bank Tokens (Moved to bottom of board area, above active player) -->
+            <div style="margin-top: auto; padding-top: 15px; border-top: 1px dashed #374151;">
+                <div class="text-sm mb-1 text-center">Banque (Touchez pour piocher)</div>
+                <div class="flex-row" style="justify-content: space-around; flex-wrap: wrap; gap: 10px; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 12px; border: 1px solid #374151;" id="bank-tokens">
+                    <!-- Tokens -->
+                </div>
+                
+                <!-- Draft Selection UI -->
+                <div class="flex-row space-between mt-2" style="background: #1f2937; padding: 5px 10px; border-radius: 8px; min-height: 50px; border: 1px solid #4b5563;">
+                    <div id="selected-tokens-ui" class="token-container">
+                        <span class="text-sm italic">Sélection...</span>
+                    </div>
+                    <button id="btn-confirm-tokens" class="btn green" style="width: auto; margin: 0; padding: 8px 15px; display: none;" onclick="confirmTokens()">Valider</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Active Player Area (Bottom) -->
+        <div id="active-player-area">
+            <div class="flex-row space-between mb-2">
+                <span class="title-font" style="font-size: 20px; color: var(--gold);" id="act-name">Vous</span>
+                <div class="title-font text-xl"><span id="act-score">0</span> pts</div>
+            </div>
+
+            <div class="flex-col gap-2">
+                <div class="flex-row space-between w-full">
+                    <span class="text-sm w-[50px]">Bonus:</span>
+                    <div class="token-container" id="act-bonuses" style="flex:1;"></div>
+                </div>
+                <div class="flex-row space-between w-full">
+                    <span class="text-sm w-[50px]">Jetons:</span>
+                    <div class="token-container" id="act-tokens" style="flex:1;"></div>
+                </div>
+                <div class="flex-row space-between w-full">
+                    <span class="text-sm w-[50px]">Réserv:</span>
+                    <div class="scroll-row" id="act-reserved" style="flex:1; padding-bottom:0; min-height: 40px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL : ACTION CARTE (Fixed flex layout) -->
+    <div class="modal-bg" id="modal-action">
+        <div class="modal-box">
+            <button class="close-btn" onclick="closeModal('modal-action')">&times;</button>
+            <h3 class="title-font text-xl mb-3 text-center">Action</h3>
+            
+            <!-- Carte au centre -->
+            <div style="margin-bottom: 20px;" id="modal-card-preview"></div>
+            
+            <!-- Boutons pleine largeur en dessous -->
+            <div class="btn-container">
+                <button id="btn-buy" class="btn" onclick="executeBuy()">Acheter</button>
+                <button id="btn-reserve" class="btn gold" onclick="executeReserve()">Réserver (+1 Or)</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL : DÉFAUSSE -->
+    <div class="modal-bg" id="modal-discard">
+        <div class="modal-box">
+            <h3 class="title-font text-xl mb-2 text-center" style="color: var(--r);">Limite dépassée</h3>
+            <p class="text-sm mb-3 text-center">Vous avez <span id="discard-count" style="color:var(--gold); font-weight:bold;">11</span> jetons (Max 10). Touchez vos jetons pour défausser.</p>
+            
+            <div class="token-container mb-3" style="justify-content: center;" id="discard-tokens-ui"></div>
+            
+            <div class="btn-container">
+                <button id="btn-confirm-discard" class="btn green" style="display:none;" onclick="confirmDiscard()">Valider la défausse</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL : PASS PHONE (Local PvP) -->
+    <div class="modal-bg" id="modal-pass-phone">
+        <div class="modal-box text-center">
+            <h3 class="title-font text-xl mb-2 text-center">Fin du tour</h3>
+            <p class="text-lg mb-3" style="color: #e2e8f0;">Passez le téléphone à <br><b style="color: var(--gold);" id="pass-phone-player">Joueur 2</b></p>
+            <div class="btn-container">
+                <button class="btn green" onclick="readyNextPlayer()">Je suis prêt</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL : FIN DE PARTIE -->
+    <div class="modal-bg" id="modal-gameover">
+        <div class="modal-box" style="text-align: center;">
+            <h2 class="title-font text-xl mb-2" style="font-size:30px;">Fin de Partie</h2>
+            <p class="mb-3" id="gameover-message" style="font-size: 16px;"></p>
+            <div class="btn-container">
+                <button class="btn" onclick="location.reload()">Retour à l'accueil</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL : RÈGLES -->
+    <div class="modal-bg" id="modal-rules">
+        <div class="modal-box">
+            <button class="close-btn" onclick="closeModal('modal-rules')">&times;</button>
+            <h2 class="title-font text-xl mb-2 text-center">Règles</h2>
+            <div style="max-height: 60vh; overflow-y: auto; font-size: 14px; line-height: 1.4; color: #ccc; text-align: left;">
+                <p><b>But :</b> Atteindre 15 points de prestige.</p>
+                <p style="margin-top:10px; color:#fff;"><b>À votre tour, 1 seule action :</b></p>
+                <ul style="padding-left: 20px; margin-top:5px;">
+                    <li>Prendre <b>3 jetons</b> différents.</li>
+                    <li>Prendre <b>2 jetons</b> identiques (si réserve ≥ 4).</li>
+                    <li><b>Réserver</b> 1 carte et prendre 1 jeton <b>Or</b> (Joker).</li>
+                    <li><b>Acheter</b> 1 carte (visible ou réservée).</li>
+                </ul>
+                <p style="margin-top:10px;">Les cartes achetées offrent des <b>bonus</b> qui réduisent le coût des prochains achats.</p>
+                <p style="margin-top:5px;">Si vos bonus remplissent les conditions d'un <b>Noble</b>, il vient à vous (+3 pts).</p>
+                <p style="margin-top:10px; color:var(--r); font-size: 12px;">Limite : Max 10 jetons en main.</p>
+            </div>
+            <div class="btn-container mt-2">
+                <button class="btn" onclick="closeModal('modal-rules')">Compris !</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- DONNÉES & VARIABLES ---
+        const COLORS = ['w', 'u', 'g', 'r', 'b'];
+        const sleep = ms => new Promise(r => setTimeout(r, ms));
+        let state = {};
+
+        // --- GÉNÉRATION ---
+        function generateDeck() {
+            const d1=[], d2=[], d3=[];
+            let id=1;
+            const getCost = (total, max) => {
+                let cost = {}, rem = total, cols = [...COLORS].sort(()=>Math.random()-0.5);
+                for (let c of cols) {
+                    if (rem <= 0) break;
+                    let v = Math.min(rem, max, Math.floor(Math.random()*max)+1);
+                    if (v>0) { cost[c] = v; rem -= v; }
+                }
+                if (rem>0) cost[cols[0]] = (cost[cols[0]]||0) + rem;
+                return cost;
+            };
+            for(let i=0;i<40;i++) d1.push({id:id++, level:1, bonus:COLORS[Math.floor(Math.random()*5)], points:Math.random()>0.8?1:0, cost:getCost(Math.floor(Math.random()*3)+3, 3)});
+            for(let i=0;i<30;i++) d2.push({id:id++, level:2, bonus:COLORS[Math.floor(Math.random()*5)], points:Math.floor(Math.random()*3)+1, cost:getCost(Math.floor(Math.random()*4)+5, 5)});
+            for(let i=0;i<20;i++) d3.push({id:id++, level:3, bonus:COLORS[Math.floor(Math.random()*5)], points:Math.floor(Math.random()*3)+3, cost:getCost(Math.floor(Math.random()*7)+7, 7)});
+            return [d1, d2, d3];
+        }
+
+        function generateNobles() {
+            const nobles = [];
+            for(let i=1;i<=5;i++) {
+                let cols = [...COLORS].sort(()=>Math.random()-0.5), req = {};
+                if (Math.random()>0.5) { req[cols[0]]=3; req[cols[1]]=3; req[cols[2]]=3; } 
+                else { req[cols[0]]=4; req[cols[1]]=4; }
+                nobles.push({id:'n'+i, points:3, req:req});
+            }
+            return nobles.slice(0,3);
+        }
+
+        // --- LOGIQUE DU JEU ---
+        function startGame(mode) {
+            document.getElementById('screen-home').classList.remove('active');
+            document.getElementById('app').style.display = 'flex';
+            
+            const isAI = mode === 'ai';
+            state = {
+                mode: mode,
+                players: [
+                    { name: 'Joueur 1', isAI: false, score: 0, tokens: {w:0,u:0,g:0,r:0,b:0,gold:0}, bonuses: {w:0,u:0,g:0,r:0,b:0}, reserved: [], purchased: [] },
+                    { name: isAI ? "L'IA 🤖" : 'Joueur 2', isAI: isAI, score: 0, tokens: {w:0,u:0,g:0,r:0,b:0,gold:0}, bonuses: {w:0,u:0,g:0,r:0,b:0}, reserved: [], purchased: [] }
+                ],
+                currentPlayer: 0,
+                tokens: {w:4,u:4,g:4,r:4,b:4,gold:5},
+                decks: generateDeck(),
+                nobles: generateNobles(),
+                selectedBankTokens: [],
+                turnPhase: 'action', 
+                round: 1, gameOver: false, lastRound: false,
+                discardData: { count: 0, selected: [] }
+            };
+            
+            state.board = [ state.decks[0].splice(0,4), state.decks[1].splice(0,4), state.decks[2].splice(0,4) ];
+            renderAll();
+        }
+
+        function switchTurn() {
+            checkNobles();
+            const p = state.players[state.currentPlayer];
+            const totalT = Object.values(p.tokens).reduce((a,b)=>a+b,0);
+            
+            // Check discard limit for current player before actually passing the turn
+            if (totalT > 10) {
+                state.turnPhase = 'discard';
+                state.discardData = { count: totalT - 10, selected: [] };
+                renderDiscardModal();
+                return;
+            }
+
+            endTurnSequence();
+        }
+
+        function endTurnSequence() {
+            const p = state.players[state.currentPlayer];
+            if (p.score >= 15) state.lastRound = true;
+            if (state.currentPlayer === 1 && state.lastRound) { triggerGameOver(); return; }
+
+            // Switch to next player
+            state.currentPlayer = (state.currentPlayer + 1) % 2;
+            state.turnPhase = 'action';
+            state.selectedBankTokens = [];
+            if(state.currentPlayer === 0) state.round++;
+
+            // Handle pass and play or AI
+            if (state.mode === 'pvp') {
+                document.getElementById('pass-phone-player').innerText = state.players[state.currentPlayer].name;
+                openModal('modal-pass-phone');
+            } else {
+                renderAll();
+                if (state.players[state.currentPlayer].isAI) executeAITurn();
+            }
+        }
+
+        function readyNextPlayer() {
+            closeModal('modal-pass-phone');
+            renderAll();
+        }
+
+        function checkNobles() {
+            const p = state.players[state.currentPlayer];
+            for (let i = 0; i < state.nobles.length; i++) {
+                const n = state.nobles[i];
+                let canAcquire = true;
+                for (let c in n.req) if (p.bonuses[c] < n.req[c]) canAcquire = false;
+                if (canAcquire) {
+                    p.score += n.points;
+                    state.nobles.splice(i, 1);
+                    showBanner(`👑 Un Noble visite ${p.name} (+3 pts) !`, '#22c55e');
+                    break;
+                }
+            }
+        }
+
+        function showBanner(msg, color = '#2563eb') {
+            const b = document.getElementById('status-banner');
+            b.innerText = msg;
+            b.style.backgroundColor = color;
+            b.classList.add('show');
+            setTimeout(() => b.classList.remove('show'), 2500);
+        }
+
+        // --- ACTIONS JETONS ---
+        function clickBankToken(c) {
+            if (state.turnPhase !== 'action' || state.players[state.currentPlayer].isAI || c === 'gold' || state.tokens[c] === 0) return;
+            const sel = state.selectedBankTokens;
+            
+            if (sel.length === 0) {
+                sel.push(c);
+            } else if (sel.length === 1) {
+                if (sel[0] === c && state.tokens[c] >= 4) sel.push(c);
+                else if (sel[0] !== c) sel.push(c);
+            } else if (sel.length === 2 && sel[0] !== sel[1] && !sel.includes(c)) {
+                sel.push(c);
+            }
+            renderTokensUI();
+        }
+
+        function unselectBankToken(idx) {
+            state.selectedBankTokens.splice(idx, 1);
+            renderTokensUI();
+        }
+
+        function confirmTokens() {
+            const p = state.players[state.currentPlayer];
+            state.selectedBankTokens.forEach(c => { state.tokens[c]--; p.tokens[c]++; });
+            state.selectedBankTokens = [];
+            switchTurn();
+        }
+
+        // --- ACTIONS CARTES ---
+        function calcCost(card, player) {
+            let tokensToPay = {}, missing = 0;
+            for (let c in card.cost) {
+                let needed = Math.max(0, card.cost[c] - player.bonuses[c]);
+                if (player.tokens[c] >= needed) tokensToPay[c] = needed;
+                else { tokensToPay[c] = player.tokens[c]; missing += (needed - player.tokens[c]); }
+            }
+            let canAfford = player.tokens.gold >= missing;
+            return { canAfford, tokensToPay, goldNeeded: canAfford ? missing : 0 };
+        }
+
+        function openCardAction(card, srcJSON) {
+            if (state.turnPhase !== 'action' || state.players[state.currentPlayer].isAI) return;
+            state.activeCard = card;
+            state.activeCardSrc = srcJSON;
+            const p = state.players[state.currentPlayer];
+            const cost = calcCost(card, p);
+            
+            document.getElementById('modal-card-preview').innerHTML = getCardHTML(card);
+            
+            const btnBuy = document.getElementById('btn-buy');
+            btnBuy.disabled = !cost.canAfford;
+
+            const btnReserve = document.getElementById('btn-reserve');
+            if (srcJSON.type === 'reserved' || p.reserved.length >= 3) {
+                btnReserve.disabled = true; btnReserve.innerText = "Réserver (Max 3)";
+            } else {
+                btnReserve.disabled = false; btnReserve.innerText = state.tokens.gold > 0 ? "Réserver (+1 Or)" : "Réserver";
+            }
+            openModal('modal-action');
+        }
+
+        function executeBuy() {
+            const card = state.activeCard, p = state.players[state.currentPlayer];
+            const cost = calcCost(card, p);
+            if (!cost.canAfford) return;
+
+            for (let c in cost.tokensToPay) { p.tokens[c] -= cost.tokensToPay[c]; state.tokens[c] += cost.tokensToPay[c]; }
+            if (cost.goldNeeded > 0) { p.tokens.gold -= cost.goldNeeded; state.tokens.gold += cost.goldNeeded; }
+
+            p.purchased.push(card); p.bonuses[card.bonus]++; p.score += card.points;
+            removeCardFromBoard(); closeModal('modal-action'); switchTurn();
+        }
+
+        function executeReserve() {
+            const p = state.players[state.currentPlayer];
+            p.reserved.push(state.activeCard);
+            if (state.tokens.gold > 0) { state.tokens.gold--; p.tokens.gold++; }
+            removeCardFromBoard(); closeModal('modal-action'); switchTurn();
+        }
+
+        function removeCardFromBoard() {
+            const src = state.activeCardSrc;
+            if (src.type === 'board') state.board[src.tier][src.idx] = state.decks[src.tier].length > 0 ? state.decks[src.tier].shift() : null;
+            else if (src.type === 'reserved') state.players[state.currentPlayer].reserved.splice(src.idx, 1);
+        }
+
+        // --- DEFAUSSE ---
+        function clickPlayerDiscard(c) {
+            const p = state.players[state.currentPlayer];
+            let queued = state.discardData.selected.filter(x=>x===c).length;
+            if (p.tokens[c] - queued > 0 && state.discardData.selected.length < state.discardData.count) {
+                state.discardData.selected.push(c); renderDiscardModal();
+            }
+        }
+        function unclickPlayerDiscard(idx) {
+            state.discardData.selected.splice(idx, 1); renderDiscardModal();
+        }
+        function confirmDiscard() {
+            if (state.discardData.selected.length !== state.discardData.count) return;
+            state.discardData.selected.forEach(c => { state.players[state.currentPlayer].tokens[c]--; state.tokens[c]++; });
+            closeModal('modal-discard');
+            endTurnSequence(); // Proceed to next turn
+        }
+
+        // --- IA SIMPLIFIÉE ---
+        async function executeAITurn() {
+            showBanner("🤖 L'IA réfléchit...", '#3b82f6');
+            await sleep(1200);
+            
+            let acted = tryAIBuy();
+            if (!acted) acted = tryAITake3();
+            if (!acted) acted = tryAITake2();
+            if (!acted) tryAIReserve();
+            
+            checkAIDiscard();
+            switchTurn();
+        }
+
+        function tryAIBuy() {
+            const ai = state.players[1];
+            let aff = [];
+            for(let t=0; t<3; t++) state.board[t].forEach((c, idx) => {
+                if(c) { let cost = calcCost(c, ai); if(cost.canAfford) aff.push({card: c, src: {type:'board', tier:t, idx:idx}, cost:cost}); }
+            });
+            ai.reserved.forEach((c, idx) => {
+                let cost = calcCost(c, ai); if(cost.canAfford) aff.push({card: c, src: {type:'reserved', idx:idx}, cost:cost});
+            });
+            if(aff.length > 0) {
+                aff.sort((a,b) => (b.card.points - a.card.points) || (b.card.level - a.card.level));
+                let best = aff[0];
+                for (let c in best.cost.tokensToPay) { ai.tokens[c] -= best.cost.tokensToPay[c]; state.tokens[c] += best.cost.tokensToPay[c]; }
+                if (best.cost.goldNeeded > 0) { ai.tokens.gold -= best.cost.goldNeeded; state.tokens.gold += best.cost.goldNeeded; }
+                ai.purchased.push(best.card); ai.bonuses[best.card.bonus]++; ai.score += best.card.points;
+                state.activeCardSrc = best.src; removeCardFromBoard();
+                showBanner(`🤖 Achat (+${best.card.points} pts)`, '#8b5cf6');
+                return true;
+            } return false;
+        }
+        function tryAITake3() {
+            let avail = COLORS.filter(c => state.tokens[c] > 0);
+            if(avail.length >= 3) {
+                avail.sort(() => Math.random() - 0.5).slice(0,3).forEach(c => { state.tokens[c]--; state.players[1].tokens[c]++; });
+                showBanner("🤖 Prend 3 jetons", '#8b5cf6');
+                return true;
+            } return false;
+        }
+        function tryAITake2() {
+            let avail = COLORS.filter(c => state.tokens[c] >= 4);
+            if(avail.length > 0) {
+                let c = avail[Math.floor(Math.random() * avail.length)];
+                state.tokens[c] -= 2; state.players[1].tokens[c] += 2;
+                showBanner("🤖 Prend 2 jetons", '#8b5cf6');
+                return true;
+            } return false;
+        }
+        function tryAIReserve() {
+            if (state.players[1].reserved.length >= 3) return false;
+            let avail = [];
+            for(let t=0; t<3; t++) state.board[t].forEach((c, i) => { if(c) avail.push({card: c, tier: t, idx: i}); });
+            if (avail.length > 0) {
+                let pick = avail[Math.floor(Math.random() * (avail.length/2))];
+                state.players[1].reserved.push(pick.card);
+                state.activeCardSrc = {type: 'board', tier: pick.tier, idx: pick.idx}; removeCardFromBoard();
+                if (state.tokens.gold > 0) { state.tokens.gold--; state.players[1].tokens.gold++; }
+                showBanner("🤖 Réserve une carte", '#8b5cf6');
+                return true;
+            } return false;
+        }
+        function checkAIDiscard() {
+            let ai = state.players[1], tot = Object.values(ai.tokens).reduce((a,b)=>a+b,0);
+            while(tot > 10) {
+                let maxC = 'w', maxV = -1;
+                COLORS.forEach(c => { if(ai.tokens[c]>maxV){maxV=ai.tokens[c];maxC=c;} });
+                ai.tokens[maxC]--; state.tokens[maxC]++; tot--;
+            }
+        }
+
+        // --- AFFICHAGE HTML ---
+        function getCardHTML(card, srcJSON, isReserved = false) {
+            if(!card) return `<div class="card" style="background:transparent; border-style:dashed; opacity:0.3;"></div>`;
+            let costs = '';
+            for(let c in card.cost) costs += `<div class="cost-badge c-${c}">${card.cost[c]}</div>`;
+            const onClick = srcJSON ? `onclick='openCardAction(${JSON.stringify(card)}, ${srcJSON})'` : '';
+            return `
+                <div class="card ${isReserved ? 'reserved' : ''}" ${onClick}>
+                    <div class="card-header">
+                        <span class="card-pts">${card.points||''}</span>
+                        <div class="card-bonus c-${card.bonus}"></div>
+                    </div>
+                    <div class="card-costs">${costs}</div>
+                </div>`;
+        }
+
+        function renderAll() {
+            if(state.gameOver) return;
+            document.getElementById('ui-round').innerText = state.round;
+            
+            const activeP = state.players[state.currentPlayer];
+            const oppP = state.players[(state.currentPlayer + 1) % 2];
+            
+            // OPPONENT (Top)
+            document.getElementById('opp-name').innerText = oppP.name;
+            document.getElementById('opp-score').innerText = oppP.score;
+            document.getElementById('opp-bonuses').innerHTML = COLORS.map(c => `<div class="token xs c-${c}">${oppP.bonuses[c]}</div>`).join('');
+            document.getElementById('opp-tokens').innerHTML = ['w','u','g','r','b','gold'].map(c => `<div class="token xs c-${c}">${oppP.tokens[c]}</div>`).join('');
+            
+            // Nobles
+            document.getElementById('board-nobles').innerHTML = state.nobles.map(n => {
+                let r = ''; for(let c in n.req) r += `<div class="noble-req c-${c}">${n.req[c]}</div>`;
+                return `<div class="noble"><div class="noble-pts">${n.points}</div><div class="noble-reqs">${r}</div></div>`;
+            }).join('');
+
+            // Board Cards
+            const cardsC = document.getElementById('board-cards'); cardsC.innerHTML = '';
+            for(let t=2; t>=0; t--) {
+                let row = `<div class="scroll-row">`;
+                state.board[t].forEach((c, i) => row += getCardHTML(c, JSON.stringify({type:'board',tier:t,idx:i})));
+                cardsC.innerHTML += row + `</div>`;
+            }
+
+            renderTokensUI();
+
+            // ACTIVE PLAYER (Bottom)
+            document.getElementById('act-name').innerText = activeP.name;
+            document.getElementById('act-score').innerText = activeP.score;
+            document.getElementById('act-bonuses').innerHTML = COLORS.map(c => `<div class="token sm c-${c}">${activeP.bonuses[c]}</div>`).join('');
+            document.getElementById('act-tokens').innerHTML = ['w','u','g','r','b','gold'].map(c => `<div class="token sm c-${c}">${activeP.tokens[c]}</div>`).join('');
+            document.getElementById('act-reserved').innerHTML = activeP.reserved.map((c,i)=>getCardHTML(c, JSON.stringify({type:'reserved',idx:i}), true)).join('');
+        }
+
+        function renderTokensUI() {
+            const b = document.getElementById('bank-tokens'); b.innerHTML = '';
+            const isH = !state.players[state.currentPlayer].isAI && state.turnPhase === 'action';
+            ['w','u','g','r','b','gold'].forEach(c => {
+                const count = state.tokens[c];
+                const dis = !isH || count===0 || c==='gold' ? 'disabled' : '';
+                b.innerHTML += `<div class="token lg c-${c} ${dis}" onclick="clickBankToken('${c}')">${count}</div>`;
+            });
+
+            const sUI = document.getElementById('selected-tokens-ui');
+            if(state.selectedBankTokens.length === 0) {
+                sUI.innerHTML = `<span class="text-sm italic">...</span>`;
+                document.getElementById('btn-confirm-tokens').style.display = 'none';
+            } else {
+                sUI.innerHTML = state.selectedBankTokens.map((c,i) => `<div class="token sm c-${c}" onclick="unselectBankToken(${i})"></div>`).join('');
+                const sel = state.selectedBankTokens;
+                const valid = (sel.length === 3 && new Set(sel).size === 3) || (sel.length === 2 && sel[0] === sel[1]);
+                document.getElementById('btn-confirm-tokens').style.display = valid ? 'block' : 'none';
+            }
+        }
+
+        function renderDiscardModal() {
+            const p = state.players[state.currentPlayer], cUI = document.getElementById('discard-tokens-ui');
+            document.getElementById('discard-count').innerText = Object.values(p.tokens).reduce((a,b)=>a+b,0);
+            cUI.innerHTML = '';
+            
+            ['w','u','g','r','b','gold'].forEach(c => {
+                let avail = p.tokens[c] - state.discardData.selected.filter(x=>x===c).length;
+                if(avail>0) cUI.innerHTML += `<div class="token lg c-${c}" onclick="clickPlayerDiscard('${c}')">${avail}</div>`;
+            });
+            
+            if(state.discardData.selected.length > 0) {
+                cUI.innerHTML += `<div style="width:100%; height:1px; background:#4b5563; margin: 10px 0;"></div>`;
+                state.discardData.selected.forEach((c,i) => cUI.innerHTML += `<div class="token sm c-${c}" style="border-color:red;" onclick="unclickPlayerDiscard(${i})">X</div>`);
+            }
+            
+            document.getElementById('btn-confirm-discard').style.display = state.discardData.selected.length === state.discardData.count ? 'block' : 'none';
+            openModal('modal-discard');
+        }
+
+        function triggerGameOver() {
+            state.gameOver = true;
+            const p1 = state.players[0], p2 = state.players[1];
+            let msg = "";
+            let winner;
+            if (p1.score > p2.score || (p1.score === p2.score && p1.purchased.length < p2.purchased.length)) winner = p1;
+            else winner = p2;
+
+            if (state.mode === 'pvp') {
+                msg = `<span style="color:var(--gold); font-weight:bold;">${winner.name}</span> remporte la partie avec ${winner.score} pts !`;
+            } else {
+                if (winner === p1) msg = `<span style="color:var(--g); font-weight:bold;">Victoire !</span> Vous battez l'IA ${p1.score} à ${p2.score}.`;
+                else msg = `<span style="color:var(--r); font-weight:bold;">Défaite...</span> L'IA l'emporte ${p2.score} à ${p1.score}.`;
+            }
+            
+            document.getElementById('gameover-message').innerHTML = msg;
+            openModal('modal-gameover');
+        }
+
+        // --- UTILITAIRES MODALES ---
+        function openModal(id) { document.getElementById(id).classList.add('active'); }
+        function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+    </script>
+</body>
+</html>

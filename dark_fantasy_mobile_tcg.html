@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Dark Fantasy Mobile TCG</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            /* Empêcher le pull-to-refresh et le scroll élastique sur mobile */
+            overscroll-behavior-y: none;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+        }
+
+        /* Effet "Mal d'invocation" et carte engagée */
+        .card-exhausted {
+            filter: grayscale(60%) brightness(70%);
+            transform: rotate(-6deg);
+            transition: all 0.3s ease;
+        }
+
+        /* Animation de sélection */
+        .card-selected {
+            box-shadow: 0 0 0 3px #10b981, 0 0 15px rgba(16, 185, 129, 0.5);
+            transform: translateY(-8px);
+        }
+
+        .card-selected-board {
+            box-shadow: 0 0 0 3px #ef4444, 0 0 15px rgba(239, 68, 68, 0.5);
+            transform: translateY(-5px);
+        }
+
+        /* Avatar cible clignotant */
+        @keyframes pulse-target {
+            0%, 100% { box-shadow: 0 0 0 2px #ef4444, 0 0 20px rgba(239, 68, 68, 0.2); }
+            50% { box-shadow: 0 0 0 4px #ef4444, 0 0 30px rgba(239, 68, 68, 0.8); }
+        }
+        .targetable {
+            animation: pulse-target 1.5s infinite;
+            cursor: pointer;
+        }
+
+        /* Défilement horizontal fluide masquant la scrollbar */
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans h-[100dvh] w-screen overflow-hidden flex flex-col">
+
+    <!-- ZONE 1: Ennemi (Avatar, HP, Mana, Main) -->
+    <div class="flex-none bg-slate-900 border-b border-slate-700 p-2 flex flex-col gap-2 z-10 shadow-lg">
+        <!-- Avatar & Stats (Cible d'attaque) -->
+        <div id="opponent-hero" class="flex justify-between items-center bg-slate-800 p-2 rounded-lg border-2 border-transparent transition-all duration-300" onclick="handleOpponentClick()">
+            <div class="flex flex-col">
+                <span class="text-xs text-slate-400 font-bold uppercase tracking-wider">Seigneur Démon (IA)</span>
+                <div class="flex gap-3 mt-1">
+                    <div class="flex items-center gap-1 bg-red-950/50 px-2 py-0.5 rounded border border-red-900">
+                        <span class="text-xs">❤️</span>
+                        <span id="opp-hp" class="text-lg font-bold text-red-400">20</span>
+                    </div>
+                    <div class="flex items-center gap-1 bg-blue-950/50 px-2 py-0.5 rounded border border-blue-900">
+                        <span class="text-xs">💧</span>
+                        <span id="opp-mana" class="text-lg font-bold text-blue-400">1/1</span>
+                    </div>
+                </div>
+            </div>
+            <div class="text-3xl">👹</div>
+        </div>
+        <!-- Main Ennemi -->
+        <div id="opponent-hand" class="flex gap-1 justify-center h-[60px] overflow-hidden">
+            <!-- Rempli par JS -->
+        </div>
+    </div>
+
+    <!-- ZONE 2: Plateau Ennemi -->
+    <div class="flex-1 bg-slate-950 border-b border-slate-800/50 flex flex-col items-center justify-center p-2 relative">
+        <div class="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/dark-matter.png')] pointer-events-none"></div>
+        <div id="opponent-board" class="flex flex-wrap justify-center gap-2 w-full z-10">
+            <!-- Rempli par JS -->
+        </div>
+    </div>
+
+    <!-- ZONE 3: Plateau Joueur -->
+    <div class="flex-1 bg-slate-900/50 flex flex-col items-center justify-center p-2 relative shadow-[inset_0_5px_15px_rgba(0,0,0,0.5)]">
+        <div id="player-board" class="flex flex-wrap justify-center gap-2 w-full z-10">
+            <!-- Rempli par JS -->
+        </div>
+    </div>
+
+    <!-- ZONE 4: Joueur (Boutons, Stats, Main) -->
+    <div class="flex-none bg-slate-900 border-t border-slate-700 flex flex-col z-10 shadow-[0_-5px_15px_rgba(0,0,0,0.5)]">
+        
+        <!-- Barre d'action & Stats Joueur -->
+        <div class="flex justify-between items-center p-2 border-b border-slate-800/50">
+            <!-- Avatar & Stats Joueur -->
+            <div class="flex items-center gap-2">
+                <div class="text-3xl">🧙‍♂️</div>
+                <div class="flex flex-col">
+                    <span class="text-xs text-slate-400 font-bold uppercase tracking-wider">Vous</span>
+                    <div class="flex gap-2 mt-1">
+                        <div class="flex items-center gap-1 bg-red-950/50 px-2 py-0.5 rounded border border-red-900">
+                            <span class="text-xs">❤️</span>
+                            <span id="player-hp" class="text-lg font-bold text-red-400">20</span>
+                        </div>
+                        <div class="flex items-center gap-1 bg-blue-950/50 px-2 py-0.5 rounded border border-blue-900">
+                            <span class="text-xs">💧</span>
+                            <span id="player-mana" class="text-lg font-bold text-blue-400">1/1</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Contrôles -->
+            <div class="flex gap-2">
+                <button id="btn-play" onclick="handlePlayClick()" class="hidden bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-bold py-2 px-4 rounded shadow-lg transition-colors border border-blue-400">
+                    JOUER
+                </button>
+                <button id="btn-end" onclick="endTurn()" class="bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-bold py-2 px-4 rounded shadow-lg transition-colors border border-emerald-400">
+                    FIN TOUR
+                </button>
+            </div>
+        </div>
+
+        <!-- Main Joueur -->
+        <div id="player-hand" class="flex gap-2 overflow-x-auto hide-scrollbar p-3 h-[130px] items-center">
+            <!-- Rempli par JS -->
+        </div>
+    </div>
+
+    <!-- Écran de Fin de Jeu -->
+    <div id="end-screen" class="hidden absolute inset-0 bg-black/90 z-50 flex-col items-center justify-center backdrop-blur-sm">
+        <h1 id="end-title" class="text-5xl font-black uppercase mb-2"></h1>
+        <p id="end-subtitle" class="text-xl text-slate-300 mb-8"></p>
+        <button onclick="startGame()" class="bg-indigo-600 px-8 py-3 rounded text-white font-bold text-xl border border-indigo-400 shadow-[0_0_15px_rgba(79,70,229,0.5)]">
+            Nouvelle Partie
+        </button>
+    </div>
+
+    <script>
+        // --- BASE DE DONNÉES DES CARTES ---
+        const CARD_DB = [
+            { name: "Gobelin", cost: 1, attack: 2, health: 1, emoji: "👺" },
+            { name: "Loup Noir", cost: 2, attack: 3, health: 2, emoji: "🐺" },
+            { name: "Squelette", cost: 2, attack: 2, health: 1, emoji: "💀" },
+            { name: "Orc", cost: 3, attack: 4, health: 3, emoji: "🧌" },
+            { name: "Chevalier", cost: 4, attack: 5, health: 4, emoji: "🤺" },
+            { name: "Gargouille", cost: 4, attack: 3, health: 6, emoji: "🦇" },
+            { name: "Dragon", cost: 6, attack: 6, health: 5, emoji: "🐉" },
+            { name: "Golem", cost: 7, attack: 8, health: 8, emoji: "🪨" }
+        ];
+
+        // --- ÉTAT DU JEU ---
+        let state = {};
+        
+        // --- SÉLECTION ACTUELLE ---
+        // { type: 'hand' | 'board', id: string }
+        let selection = null; 
+        
+        function generateId() {
+            return Math.random().toString(36).substr(2, 9);
+        }
+
+        function drawCard() {
+            const template = CARD_DB[Math.floor(Math.random() * CARD_DB.length)];
+            return { ...template, id: generateId(), ready: false }; // ready: false = Mal d'invocation
+        }
+
+        // --- INITIALISATION ---
+        function startGame() {
+            document.getElementById('end-screen').style.display = 'none';
+            selection = null;
+
+            state = {
+                turn: 'player', // 'player' ou 'opponent'
+                winner: null,
+                player: {
+                    hp: 20, mana: 1, maxMana: 1,
+                    hand: [drawCard(), drawCard(), drawCard()],
+                    board: []
+                },
+                opponent: {
+                    hp: 20, mana: 1, maxMana: 1,
+                    hand: [drawCard(), drawCard(), drawCard()],
+                    board: []
+                }
+            };
+            
+            updateUI();
+        }
+
+        // --- LOGIQUE JOUEUR ---
+
+        // Clic sur une carte (Main ou Plateau)
+        function handleCardClick(cardId, location) {
+            if (state.turn !== 'player' || state.winner) return;
+
+            if (location === 'hand') {
+                // Sélectionner une carte en main
+                if (selection && selection.id === cardId) {
+                    selection = null; // Désélectionner
+                } else {
+                    selection = { type: 'hand', id: cardId };
+                }
+                updateUI();
+            } 
+            else if (location === 'board') {
+                // Sélectionner une carte du plateau pour attaquer
+                const card = state.player.board.find(c => c.id === cardId);
+                if (card && card.ready) {
+                    if (selection && selection.id === cardId) {
+                        selection = null;
+                    } else {
+                        selection = { type: 'board', id: cardId };
+                    }
+                    updateUI();
+                }
+            }
+        }
+
+        // Bouton "JOUER"
+        function handlePlayClick() {
+            if (state.turn !== 'player' || !selection || selection.type !== 'hand') return;
+
+            const cardIndex = state.player.hand.findIndex(c => c.id === selection.id);
+            const card = state.player.hand[cardIndex];
+
+            if (card && state.player.mana >= card.cost && state.player.board.length < 5) {
+                // Payer le coût et déplacer
+                state.player.mana -= card.cost;
+                state.player.hand.splice(cardIndex, 1);
+                state.player.board.push(card);
+                selection = null;
+                updateUI();
+            }
+        }
+
+        // Clic sur l'Avatar de l'adversaire (Attaque)
+        function handleOpponentClick() {
+            if (state.turn !== 'player' || !selection || selection.type !== 'board') return;
+
+            const card = state.player.board.find(c => c.id === selection.id);
+            if (card && card.ready) {
+                // Appliquer les dégâts
+                state.opponent.hp -= card.attack;
+                card.ready = false; // Engager la carte (Tapped)
+                selection = null;
+                
+                checkWin();
+                updateUI();
+            }
+        }
+
+        function endTurn() {
+            if (state.turn !== 'player' || state.winner) return;
+            
+            selection = null;
+            state.turn = 'opponent';
+            
+            // Préparer le tour de l'adversaire
+            state.opponent.maxMana = Math.min(10, state.opponent.maxMana + 1);
+            state.opponent.mana = state.opponent.maxMana;
+            state.opponent.board.forEach(c => c.ready = true); // Dégager ses créatures
+            if (state.opponent.hand.length < 5) state.opponent.hand.push(drawCard()); // Pioche
+
+            updateUI();
+            
+            // Lancer l'IA après un court délai
+            setTimeout(playAITurn, 1000);
+        }
+
+        // --- INTELLIGENCE ARTIFICIELLE ---
+        function playAITurn() {
+            if (state.winner) return;
+
+            // 1. Phase Principale (Jouer des cartes)
+            let aiMana = state.opponent.mana;
+            let newHand = [];
+            
+            // Trier par coût décroissant pour optimiser le mana
+            state.opponent.hand.sort((a, b) => b.cost - a.cost);
+
+            for (let card of state.opponent.hand) {
+                if (card.cost <= aiMana && state.opponent.board.length < 5) {
+                    aiMana -= card.cost;
+                    state.opponent.board.push(card);
+                } else {
+                    newHand.push(card);
+                }
+            }
+            state.opponent.hand = newHand;
+            state.opponent.mana = aiMana;
+            updateUI();
+
+            // 2. Phase de Combat
+            setTimeout(() => {
+                let hasAttacked = false;
+                state.opponent.board.forEach(card => {
+                    if (card.ready) {
+                        state.player.hp -= card.attack;
+                        card.ready = false;
+                        hasAttacked = true;
+                    }
+                });
+
+                if (hasAttacked) updateUI();
+                checkWin();
+
+                // 3. Fin du tour IA
+                setTimeout(() => {
+                    if (state.winner) return;
+                    
+                    state.turn = 'player';
+                    state.player.maxMana = Math.min(10, state.player.maxMana + 1);
+                    state.player.mana = state.player.maxMana;
+                    state.player.board.forEach(c => c.ready = true); // Dégager nos créatures
+                    if (state.player.hand.length < 5) state.player.hand.push(drawCard()); // Pioche Joueur
+                    
+                    updateUI();
+                }, 800);
+
+            }, 1000);
+        }
+
+        function checkWin() {
+            if (state.player.hp <= 0) {
+                state.winner = 'opponent';
+                showEndScreen("DÉFAITE", "Vous avez été écrasé.", "text-red-500");
+            } else if (state.opponent.hp <= 0) {
+                state.winner = 'player';
+                showEndScreen("VICTOIRE !", "Le Seigneur Démon est vaincu.", "text-yellow-400");
+            }
+        }
+
+        function showEndScreen(title, subtitle, colorClass) {
+            const screen = document.getElementById('end-screen');
+            const titleEl = document.getElementById('end-title');
+            
+            titleEl.textContent = title;
+            titleEl.className = `text-5xl font-black uppercase mb-2 ${colorClass}`;
+            document.getElementById('end-subtitle').textContent = subtitle;
+            
+            screen.style.display = 'flex';
+        }
+
+        // --- MOTEUR DE RENDU DOM ---
+        function updateUI() {
+            // Stats Ennemi
+            document.getElementById('opp-hp').textContent = state.opponent.hp;
+            document.getElementById('opp-mana').textContent = `${state.opponent.mana}/${state.opponent.maxMana}`;
+            
+            // Cible Ennemi (Indication visuelle)
+            const oppHero = document.getElementById('opponent-hero');
+            if (selection && selection.type === 'board') {
+                oppHero.classList.add('targetable');
+            } else {
+                oppHero.classList.remove('targetable');
+            }
+
+            // Stats Joueur
+            document.getElementById('player-hp').textContent = state.player.hp;
+            document.getElementById('player-mana').textContent = `${state.player.mana}/${state.player.maxMana}`;
+
+            // Boutons d'action
+            const btnPlay = document.getElementById('btn-play');
+            const btnEnd = document.getElementById('btn-end');
+            
+            if (state.turn === 'player' && selection && selection.type === 'hand') {
+                const selectedCard = state.player.hand.find(c => c.id === selection.id);
+                if (selectedCard && state.player.mana >= selectedCard.cost) {
+                    btnPlay.style.display = 'block';
+                } else {
+                    btnPlay.style.display = 'none';
+                }
+            } else {
+                btnPlay.style.display = 'none';
+            }
+
+            if (state.turn === 'player') {
+                btnEnd.classList.remove('opacity-50', 'pointer-events-none');
+                btnEnd.textContent = "FIN TOUR";
+            } else {
+                btnEnd.classList.add('opacity-50', 'pointer-events-none');
+                btnEnd.textContent = "TOUR IA...";
+            }
+
+            // Main Ennemi (Cartes cachées)
+            const oppHand = document.getElementById('opponent-hand');
+            oppHand.innerHTML = '';
+            state.opponent.hand.forEach(() => {
+                oppHand.innerHTML += `<div class="w-10 h-14 bg-slate-800 border border-slate-700 rounded-sm shadow-md flex-shrink-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]"></div>`;
+            });
+
+            // Plateau Ennemi
+            renderBoard('opponent-board', state.opponent.board, false);
+
+            // Plateau Joueur
+            renderBoard('player-board', state.player.board, true);
+
+            // Main Joueur
+            renderHand('player-hand', state.player.hand);
+        }
+
+        // Générateur HTML pour les cartes
+        function createCardHTML(card, isBoard, isPlayer, isSelected) {
+            let classes = `relative w-16 h-[90px] rounded border flex flex-col flex-shrink-0 bg-gradient-to-b from-slate-700 to-slate-800 select-none `;
+            
+            if (isBoard) {
+                if (!card.ready) classes += ' card-exhausted border-slate-900 ';
+                else classes += ' border-slate-500 ';
+                
+                if (isSelected) classes += ' card-selected-board z-20 ';
+                if (isPlayer && card.ready && state.turn === 'player') classes += ' cursor-pointer hover:border-yellow-500 ';
+            } else {
+                // Carte en main
+                classes += ' border-slate-600 cursor-pointer ';
+                if (isSelected) classes += ' card-selected z-20 border-emerald-500 ';
+                if (state.player.mana < card.cost) classes += ' opacity-50 '; // Trop cher
+            }
+
+            return `
+                <div class="${classes}" id="${card.id}" 
+                     ${isPlayer ? `onclick="handleCardClick('${card.id}', '${isBoard ? 'board' : 'hand'}')"` : ''}>
+                    
+                    <!-- Coût Mana -->
+                    <div class="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-blue-600 border border-slate-900 flex items-center justify-center text-[10px] font-bold text-white shadow z-10">
+                        ${card.cost}
+                    </div>
+
+                    <!-- Nom -->
+                    <div class="h-1/5 bg-slate-900/80 rounded-t px-0.5 flex items-center justify-center overflow-hidden">
+                        <span class="text-[8px] font-bold text-slate-200 truncate">${card.name}</span>
+                    </div>
+
+                    <!-- Art -->
+                    <div class="flex-grow flex items-center justify-center bg-slate-800 border-y border-slate-700 text-2xl">
+                        ${card.emoji}
+                    </div>
+
+                    <!-- Stats -->
+                    <div class="h-1/4 flex justify-between items-center px-1 bg-slate-900 rounded-b">
+                        <div class="w-4 h-4 rounded-full bg-yellow-600 flex items-center justify-center text-[9px] font-bold text-white shadow">
+                            ${card.attack}
+                        </div>
+                        <div class="w-4 h-4 rounded-full bg-red-600 flex items-center justify-center text-[9px] font-bold text-white shadow">
+                            ${card.health}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderBoard(containerId, boardArray, isPlayer) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = '';
+            boardArray.forEach(card => {
+                const isSelected = selection && selection.id === card.id;
+                container.innerHTML += createCardHTML(card, true, isPlayer, isSelected);
+            });
+        }
+
+        function renderHand(containerId, handArray) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = '';
+            handArray.forEach(card => {
+                const isSelected = selection && selection.id === card.id;
+                container.innerHTML += createCardHTML(card, false, true, isSelected);
+            });
+        }
+
+        // Lancement au chargement
+        window.onload = startGame;
+
+    </script>
+</body>
+</html>

@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Got Five !</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body, html {
+            margin: 0; padding: 0; width: 100%;
+            background-color: #111827; color: #f3f4f6;
+            font-family: 'Fredoka', sans-serif;
+            user-select: none; -webkit-user-select: none;
+        }
+
+        /* --- THE FIX: Fixed Bottom Dock Constraints --- */
+        body {
+            /* Keep padding at the bottom so the main content doesn't hide behind the dock */
+            padding-bottom: 140px; 
+            height: 100dvh; 
+            display: flex; 
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        #action-dock {
+            position: fixed; bottom: 0; left: 0; width: 100%; z-index: 9999;
+            background: #1a202c; padding: 1rem; border-top: 2px solid #374151;
+            box-shadow: 0 -5px 20px rgba(0,0,0,0.6);
+            min-height: 140px;
+            display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 8px;
+        }
+
+        /* Main Game Area */
+        #game-layout {
+            flex: 1; display: flex; flex-direction: column; overflow: hidden;
+        }
+        @media (min-width: 1024px) {
+            #game-layout { flex-direction: row; }
+        }
+
+        #left-panel {
+            flex: 1; display: flex; flex-direction: column; overflow-y: auto;
+            border-right: 2px solid #374151;
+        }
+        #right-panel {
+            flex: 1; display: flex; flex-direction: column; overflow-y: auto;
+            background: #1f2937;
+        }
+
+        /* Tiles */
+        .tile {
+            width: 50px; height: 75px; border-radius: 8px;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            font-size: 24px; font-weight: bold; position: relative;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.4); border: 2px solid rgba(255,255,255,0.2);
+            flex-shrink: 0; transition: transform 0.2s, border-color 0.2s; z-index: 1;
+        }
+        @media (min-width: 768px) { .tile { width: 60px; height: 90px; font-size: 28px; } }
+        
+        .tile.interactive { cursor: pointer; }
+        .tile.interactive:active { transform: scale(0.95); }
+        .tile.selected { border-color: #fbbf24; box-shadow: 0 0 15px #fbbf24; transform: translateY(-5px); z-index: 10; }
+        .tile.back-tile { color: rgba(255,255,255,0.1); }
+
+        .c-red { background: linear-gradient(135deg, #ef4444, #b91c1c); color: white; }
+        .c-blue { background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: white; }
+        .c-green { background: linear-gradient(135deg, #10b981, #047857); color: white; }
+        .c-yellow { background: linear-gradient(135deg, #fcd34d, #d97706); color: #451a03; }
+        .c-purple { background: linear-gradient(135deg, #a855f7, #6d28d9); color: white; }
+        
+        .dots-container { position: absolute; bottom: 4px; display: flex; gap: 3px; }
+        .dot { width: 6px; height: 6px; background: currentColor; border-radius: 50%; opacity: 0.8; }
+        .back-tile .dots-container { display: flex; opacity: 1; }
+        
+        .tiles-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; padding: 10px; border-bottom: 1px dashed #374151; }
+
+        /* Grid */
+        #deduction-grid {
+            display: grid; grid-template-columns: repeat(12, 1fr); gap: 3px; padding: 10px;
+        }
+        .grid-cell {
+            aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: space-evenly;
+            border-radius: 4px; font-weight: bold; font-size: 12px;
+            cursor: pointer; border: 1px solid rgba(255,255,255,0.2);
+        }
+        @media (min-width: 768px) { .grid-cell { font-size: 16px; border-radius: 6px; } }
+        
+        .grid-cell .grid-num { line-height: 1; margin-top: 2px; }
+        .grid-dots-container { display: flex; gap: 2px; }
+        .grid-dot { width: 3px; height: 3px; background: white; border-radius: 50%; opacity: 0.9; }
+        @media (min-width: 768px) { .grid-dot { width: 4px; height: 4px; } }
+
+        /* Grid Row Colors */
+        .grid-green { background: linear-gradient(135deg, #10b981, #047857); color: white; }
+        .grid-purple { background: linear-gradient(135deg, #a855f7, #6d28d9); color: white; }
+        .grid-blue { background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: white; }
+        .grid-red { background: linear-gradient(135deg, #ef4444, #b91c1c); color: white; }
+        .grid-yellow { background: linear-gradient(135deg, #fcd34d, #d97706); color: #451a03; }
+        .grid-yellow .grid-dot { background: #451a03; }
+
+        .grid-cell.crossed { opacity: 0.25; filter: grayscale(80%); text-decoration: line-through; border-color: transparent; }
+        .grid-cell.auto-crossed { pointer-events: none; opacity: 0.15; filter: grayscale(100%); border-color: transparent; }
+
+        /* Buttons */
+        .btn { padding: 8px 16px; border-radius: 8px; font-weight: bold; cursor: pointer; text-align: center; border: none; transition: transform 0.1s; }
+        .btn:active { transform: scale(0.95); }
+        .btn-blue { background: #2563eb; color: white; }
+        .btn-green { background: #16a34a; color: white; }
+        .btn-yellow { background: #fbbf24; color: #78350f; }
+        .btn-gray { background: #4b5563; color: white; }
+        .btn-red-pulse { background: #dc2626; color: white; border: 2px solid #f87171; font-size: 1.2rem; padding: 12px 24px; animation: pulse 1.5s infinite; width: 100%; max-width: 400px;}
+        
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.03); box-shadow: 0 0 15px #ef4444; } 100% { transform: scale(1); } }
+
+        /* Logs */
+        #log-container { background: #030712; padding: 10px; font-size: 13px; color: #9ca3af; flex: 0 0 100px; overflow-y: auto; border-bottom: 2px solid #374151; }
+
+        /* Modals */
+        .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.85); display: none; align-items: center; justify-content: center; z-index: 10000; padding: 15px; }
+        .modal-bg.active { display: flex; }
+        .modal-content { background: #1f2937; border: 2px solid #4b5563; border-radius: 12px; padding: 20px; width: 100%; max-width: 400px; text-align: center; position: relative; max-height: 90dvh; overflow-y: auto; }
+        .got-five-input { width: 100%; padding: 10px; border-radius: 8px; border: 2px solid #4b5563; background: #111827; color: white; font-size: 20px; text-align: center; margin-bottom: 10px; }
+        
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #4b5563; }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <header class="bg-gray-800 border-b-2 border-gray-700 p-3 flex justify-between items-center shrink-0">
+        <h1 class="text-xl font-bold text-yellow-400">Got Five !</h1>
+        <button class="btn btn-blue text-xs py-1 px-3" onclick="document.getElementById('modal-rules').classList.add('active')">Règles</button>
+    </header>
+
+    <!-- Main Content -->
+    <div id="game-layout">
+        
+        <!-- Left Panel: Cards -->
+        <div id="left-panel">
+            <div id="log-container"></div>
+            
+            <div class="p-2">
+                <div class="text-xs font-bold text-red-400 uppercase tracking-widest text-center">Adversaire (IA)</div>
+                <div id="ai-hand" class="tiles-row border-none"></div>
+            </div>
+
+            <div class="p-2 bg-gray-800">
+                <div class="text-xs font-bold text-gray-400 uppercase tracking-widest text-center">Centre (Pioche: <span id="deck-count">0</span>)</div>
+                <div id="center-tiles" class="tiles-row border-none"></div>
+            </div>
+
+            <div class="p-2">
+                <div class="text-xs font-bold text-blue-400 uppercase tracking-widest text-center">Vos 5 Tuiles Secrètes</div>
+                <div id="player-hand" class="tiles-row border-none"></div>
+            </div>
+        </div>
+
+        <!-- Right Panel: Grid -->
+        <div id="right-panel">
+            <div class="bg-gray-800 text-center py-2 font-bold text-sm text-gray-400 uppercase tracking-widest border-b border-gray-700">
+                Grille de Déduction
+            </div>
+            <div id="deduction-grid"></div>
+        </div>
+
+    </div>
+
+    <!-- THE FIXED ACTION DOCK -->
+    <div id="action-dock">
+        <!-- Injected dynamically by JS -->
+    </div>
+
+    <!-- MODAL: GOT FIVE -->
+    <div id="modal-gotfive" class="modal-bg">
+        <div class="modal-content border-yellow-500">
+            <button onclick="document.getElementById('modal-gotfive').classList.remove('active')" class="absolute top-2 right-4 text-gray-400 text-2xl font-bold">&times;</button>
+            <h2 class="text-3xl text-yellow-400 font-bold mb-2">Got Five !</h2>
+            <p class="text-sm text-gray-400 mb-4">Devinez la valeur exacte de vos 5 tuiles secrètes.</p>
+            <div id="gotfive-inputs" class="flex flex-col gap-2 mb-4"></div>
+            <button onclick="validateGotFive()" class="btn btn-yellow w-full text-lg py-3">Valider ma combinaison</button>
+        </div>
+    </div>
+
+    <!-- MODAL: GAME OVER -->
+    <div id="modal-gameover" class="modal-bg">
+        <div class="modal-content">
+            <h2 id="go-title" class="text-4xl font-bold mb-4">Fin</h2>
+            <p id="go-msg" class="text-lg text-gray-300 mb-6"></p>
+            <div class="bg-gray-800 p-4 rounded-xl mb-6">
+                <h3 class="text-sm text-gray-400 mb-2 uppercase">Votre combinaison secrète :</h3>
+                <div id="go-reveal" class="flex justify-center gap-2 flex-wrap"></div>
+            </div>
+            <button onclick="location.reload()" class="btn btn-blue w-full py-3">Retour à l'accueil</button>
+        </div>
+    </div>
+
+    <!-- MODAL: RULES -->
+    <div id="modal-rules" class="modal-bg active"> <!-- Active by default for intro -->
+        <div class="modal-content border-blue-500 text-left">
+            <h2 class="text-2xl text-blue-400 font-bold mb-4 border-b border-gray-600 pb-2 text-center">Got Five !</h2>
+            <div class="text-sm text-gray-300 space-y-3 mb-4">
+                <p><b>Le But :</b> Déduire la valeur de vos 5 tuiles secrètes (triées par ordre croissant) de 1 à 60.</p>
+                <p><b>Actions à votre tour :</b> Cliquez sur une tuile du centre, puis choisissez :</p>
+                <ul class="list-disc pl-5">
+                    <li><b class="text-blue-300">Classer :</b> L'IA vous dira où cette tuile se placerait dans votre main.</li>
+                    <li><b class="text-green-300">Comparer :</b> Demandez si la tuile du centre a le <b>même nombre de points</b> qu'une de vos tuiles secrètes (T1 à T5).</li>
+                </ul>
+                <p class="text-yellow-400 font-bold mt-2">Utilisez la grille à droite pour barrer les numéros impossibles ! Criez Got Five quand vous avez trouvé !</p>
+            </div>
+            <button onclick="startGame()" class="btn btn-yellow w-full text-lg py-3">Jouer</button>
+        </div>
+    </div>
+
+    <script>
+        const COLORS = ['red', 'blue', 'green', 'yellow', 'purple'];
+        const COLOR_CLASSES = { 'red': 'c-red', 'blue': 'c-blue', 'green': 'c-green', 'yellow': 'c-yellow', 'purple': 'c-purple' };
+        
+        let state = {
+            deck: [], playerHand: [], aiHand: [], centerTiles: [],
+            gridState: new Array(61).fill(0),
+            turn: 'player', // 'player' or 'ai'
+            actionState: 'SELECT_CENTER', // 'SELECT_CENTER', 'CHOOSE_ACTION', 'END_TURN'
+            selectedCenterIdx: null,
+            gameOver: false
+        };
+
+        function startGame() {
+            document.getElementById('modal-rules').classList.remove('active');
+            
+            let deck = [];
+            for(let num = 1; num <= 60; num++) {
+                let color;
+                if(num % 5 === 1) color = 'green';
+                else if(num % 5 === 2) color = 'purple';
+                else if(num % 5 === 3) color = 'blue';
+                else if(num % 5 === 4) color = 'red';
+                else color = 'yellow';
+                
+                let col = Math.floor((num - 1) / 5);
+                let dots = (col % 3) + 1;
+                
+                deck.push({ id: num, num: num, color: color, dots: dots });
+            }
+
+            const drawHand = (sourceDeck) => {
+                let hand = [];
+                let needed = [...COLORS];
+                let tempDeck = [];
+                while(needed.length > 0 && sourceDeck.length > 0) {
+                    let t = sourceDeck.pop();
+                    let idx = needed.indexOf(t.color);
+                    if(idx !== -1) {
+                        hand.push(t);
+                        needed.splice(idx, 1);
+                    } else {
+                        tempDeck.push(t); 
+                    }
+                }
+                sourceDeck.push(...tempDeck); 
+                return hand.sort((a,b) => a.num - b.num); 
+            };
+
+            deck = deck.sort(() => Math.random() - 0.5);
+            state.playerHand = drawHand(deck);
+            deck = deck.sort(() => Math.random() - 0.5);
+            state.aiHand = drawHand(deck);
+            deck = deck.sort(() => Math.random() - 0.5);
+            
+            for(let i=0; i<5; i++) state.centerTiles.push(deck.pop());
+            state.deck = deck;
+            state.actionState = 'SELECT_CENTER';
+            
+            initGrid();
+            autoCrossVisible();
+            logMsg("La partie commence ! C'est à vous.", "text-yellow-400");
+            renderAll();
+        }
+
+        function initGrid() {
+            const container = document.getElementById('deduction-grid');
+            container.innerHTML = '';
+            
+            for(let r = 1; r <= 5; r++) {
+                for(let c = 0; c < 12; c++) {
+                    let num = r + c * 5;
+                    let cell = document.createElement('div');
+                    
+                    let colorClass = '';
+                    if(r === 1) colorClass = 'grid-green';
+                    else if(r === 2) colorClass = 'grid-purple';
+                    else if(r === 3) colorClass = 'grid-blue';
+                    else if(r === 4) colorClass = 'grid-red';
+                    else if(r === 5) colorClass = 'grid-yellow';
+                    
+                    cell.className = `grid-cell ${colorClass}`;
+                    cell.id = `cell-${num}`;
+                    
+                    let dotsCount = (c % 3) + 1;
+                    let dotsHtml = '';
+                    for(let i = 0; i < dotsCount; i++) dotsHtml += '<div class="grid-dot"></div>';
+                    
+                    cell.innerHTML = `
+                        <div class="grid-num">${num}</div>
+                        <div class="grid-dots-container">${dotsHtml}</div>
+                    `;
+                    
+                    cell.onclick = () => {
+                        if(!cell.classList.contains('auto-crossed')) {
+                            state.gridState[num] = (state.gridState[num] + 1) % 2;
+                            cell.classList.toggle('crossed', state.gridState[num] === 1);
+                        }
+                    };
+                    container.appendChild(cell);
+                }
+            }
+        }
+
+        function autoCrossVisible() {
+            [...state.aiHand, ...state.centerTiles].forEach(t => {
+                let cell = document.getElementById(`cell-${t.num}`);
+                if(cell) cell.classList.add('auto-crossed', 'crossed');
+            });
+        }
+
+        function selectCenter(idx) {
+            if(state.turn !== 'player' || state.actionState === 'END_TURN') return;
+            state.selectedCenterIdx = idx;
+            state.actionState = 'CHOOSE_ACTION';
+            renderAll();
+        }
+
+        function cancelSelection() {
+            state.selectedCenterIdx = null;
+            state.actionState = 'SELECT_CENTER';
+            renderAll();
+        }
+
+        function actionClasser() {
+            let t = state.centerTiles[state.selectedCenterIdx];
+            let p = state.playerHand;
+            let res = "";
+            if (t.num < p[0].num) res = "avant ta 1ère tuile";
+            else if (t.num > p[4].num) res = "après ta 5ème tuile";
+            else {
+                for(let i=0; i<4; i++) {
+                    if(t.num > p[i].num && t.num < p[i+1].num) {
+                        res = `entre ta T${i+1} et ta T${i+2}`; break;
+                    }
+                }
+            }
+            logMsg(`Vous classez le ${t.num} : L'IA dit que c'est ${res}.`, "text-blue-400");
+            state.actionState = 'END_TURN';
+            renderAll();
+        }
+
+        function actionComparer(pIdx) {
+            let tC = state.centerTiles[state.selectedCenterIdx];
+            let tP = state.playerHand[pIdx];
+            let match = (tC.dots === tP.dots);
+            logMsg(`Vous comparez le ${tC.num} avec T${pIdx+1} : L'IA répond ${match ? 'OUI (Mêmes points)' : 'NON'}.`, "text-green-400");
+            state.actionState = 'END_TURN';
+            renderAll();
+        }
+
+        function endTurn() {
+            // Replace center tile
+            if(state.deck.length > 0) {
+                let old = state.centerTiles.splice(state.selectedCenterIdx, 1)[0];
+                let newT = state.deck.pop();
+                state.centerTiles.splice(state.selectedCenterIdx, 0, newT);
+                logMsg(`Fin du tour. Pioche du ${newT.num} au centre.`, "text-gray-400");
+            }
+            autoCrossVisible();
+            state.selectedCenterIdx = null;
+            state.turn = 'ai';
+            state.actionState = 'SELECT_CENTER';
+            renderAll();
+            
+            // AI Turn
+            setTimeout(() => {
+                let cIdx = Math.floor(Math.random() * state.centerTiles.length);
+                let actionType = Math.random() > 0.5 ? 'classé' : 'comparé';
+                let t = state.centerTiles[cIdx];
+                logMsg(`L'IA a ${actionType} la tuile centrale ${t.num}.`, "text-red-400");
+                
+                if(state.deck.length > 0) {
+                    let newT = state.deck.pop();
+                    state.centerTiles.splice(cIdx, 1, newT);
+                    logMsg(`L'IA a pioché le ${newT.num} pour le centre.`, "text-gray-400");
+                }
+                autoCrossVisible();
+                state.turn = 'player';
+                renderAll();
+            }, 1500);
+        }
+
+        function logMsg(txt, colorClass = "text-white") {
+            const logC = document.getElementById('log-container');
+            logC.innerHTML += `<div class="${colorClass} mb-1">${txt}</div>`;
+            logC.scrollTop = logC.scrollHeight;
+        }
+
+        function renderAll() {
+            if(state.gameOver) return;
+            document.getElementById('deck-count').innerText = state.deck.length;
+
+            const getTileHtml = (t, isHidden, isSelectable, isSelected, onClickStr) => {
+                let dots = ''; for(let i=0; i<t.dots; i++) dots += `<div class="dot"></div>`;
+                let classes = `tile ${COLOR_CLASSES[t.color]} ${isHidden ? 'back-tile' : ''} ${isSelectable ? 'interactive' : ''} ${isSelected ? 'selected' : ''}`;
+                return `<div class="${classes}" ${onClickStr}><span>${isHidden ? '?' : t.num}</span><div class="dots-container">${dots}</div></div>`;
+            };
+
+            // AI
+            document.getElementById('ai-hand').innerHTML = state.aiHand.map(t => getTileHtml(t, false, false, false, '')).join('');
+            
+            // Player
+            document.getElementById('player-hand').innerHTML = state.playerHand.map((t, i) => `
+                <div class="flex flex-col items-center">
+                    <span class="text-[10px] text-gray-500 mb-1">T${i+1}</span>
+                    ${getTileHtml(t, true, false, false, '')}
+                </div>
+            `).join('');
+
+            // Center
+            document.getElementById('center-tiles').innerHTML = state.centerTiles.map((t, i) => {
+                let canSel = state.turn === 'player' && state.actionState !== 'END_TURN';
+                return getTileHtml(t, false, canSel, i === state.selectedCenterIdx, canSel ? `onclick="selectCenter(${i})"` : '');
+            }).join('');
+
+            // DOCK UI
+            const dock = document.getElementById('action-dock');
+            dock.innerHTML = '';
+            
+            if(state.turn !== 'player') {
+                dock.innerHTML = `<div class="text-xl font-bold text-red-400 animate-pulse">L'IA réfléchit...</div>`;
+            } 
+            else if (state.actionState === 'END_TURN') {
+                dock.innerHTML = `<button class="btn btn-red-pulse" onclick="endTurn()">TERMINER MON TOUR</button>`;
+            } 
+            else if (state.actionState === 'SELECT_CENTER') {
+                dock.innerHTML = `
+                    <div class="text-sm font-bold text-gray-300">Sélectionnez une tuile au centre pour agir</div>
+                    <button class="btn btn-yellow px-8 mt-2" onclick="openGotFive()">Got Five ! (Résoudre)</button>
+                `;
+            } 
+            else if (state.actionState === 'CHOOSE_ACTION') {
+                let centerTile = state.centerTiles[state.selectedCenterIdx];
+                dock.innerHTML = `
+                    <div class="flex flex-wrap justify-center gap-2 w-full max-w-lg">
+                        <button class="btn btn-blue flex-1" onclick="actionClasser()">Classer le ${centerTile.num}</button>
+                        <button class="btn btn-gray" onclick="cancelSelection()">Annuler</button>
+                    </div>
+                    <div class="text-xs text-gray-400 mt-1">Comparer les points du ${centerTile.num} avec votre :</div>
+                    <div class="flex gap-2 justify-center w-full">
+                        ${[0,1,2,3,4].map(i => `<button class="btn btn-green flex-1" onclick="actionComparer(${i})">T${i+1}</button>`).join('')}
+                    </div>
+                `;
+            }
+        }
+
+        function openGotFive() {
+            const container = document.getElementById('gotfive-inputs');
+            container.innerHTML = state.playerHand.map((t, i) => `
+                <div class="flex items-center gap-3">
+                    <div class="w-6 h-6 rounded-full ${COLOR_CLASSES[t.color]} flex-shrink-0 border border-white/20"></div>
+                    <input type="number" id="gf-input-${i}" class="got-five-input flex-1 m-0" placeholder="T${i+1}" min="1" max="60">
+                </div>
+            `).join('');
+            document.getElementById('modal-gotfive').classList.add('active');
+        }
+
+        function validateGotFive() {
+            let correct = true;
+            for(let i=0; i<5; i++) {
+                let val = parseInt(document.getElementById(`gf-input-${i}`).value);
+                if(val !== state.playerHand[i].num) correct = false;
+            }
+            document.getElementById('modal-gotfive').classList.remove('active');
+            
+            state.gameOver = true;
+            document.getElementById('go-title').innerText = correct ? "VICTOIRE !" : "DÉFAITE !";
+            document.getElementById('go-title').className = `text-4xl font-bold mb-4 ${correct ? 'text-green-500' : 'text-red-500'}`;
+            document.getElementById('go-msg').innerText = correct ? "C'est exact ! Vous avez déduit votre main !" : "Erreur ! Votre combinaison est fausse.";
+            
+            document.getElementById('go-reveal').innerHTML = state.playerHand.map(t => {
+                let dots = ''; for(let i=0; i<t.dots; i++) dots += `<div class="dot"></div>`;
+                return `<div class="tile ${COLOR_CLASSES[t.color]} scale-75 m-[-5px]"><span>${t.num}</span><div class="dots-container">${dots}</div></div>`;
+            }).join('');
+            
+            document.getElementById('modal-gameover').classList.add('active');
+        }
+
+    </script>
+</body>
+</html>

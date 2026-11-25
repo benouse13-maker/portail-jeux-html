@@ -1,0 +1,1070 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pokémon RPG Master - Quêtes & Succès</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #0f172a;
+            color: #fff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 10px;
+        }
+        .game-card {
+            background: #1e293b;
+            border: 2px solid #38bdf8;
+            border-radius: 16px;
+            width: 100%;
+            max-width: 520px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+        }
+        h1 { text-align: center; color: #38bdf8; margin-top: 0; font-size: 22px; }
+        
+        .status-bar {
+            background: #0f172a;
+            border-radius: 10px;
+            padding: 8px 10px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            margin-bottom: 8px;
+            border: 1px solid #334155;
+        }
+        
+        .screen-box {
+            background: #0f172a;
+            border: 1px solid #475569;
+            border-radius: 10px;
+            padding: 12px;
+            min-height: 170px;
+            margin-bottom: 15px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .map-grid {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 3px;
+            background: #020617;
+            padding: 6px;
+            border-radius: 8px;
+            border: 1px solid #334155;
+            margin: 0 auto 10px auto;
+            width: 100%;
+            max-width: 340px;
+        }
+        .map-tile {
+            aspect-ratio: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 16px;
+            border-radius: 4px;
+            user-select: none;
+        }
+        .tile-town { background: #334155; }
+        .tile-forest { background: #14532d; }
+        .tile-cave { background: #44403c; }
+        .tile-volcano { background: #7f1d1d; }
+        .tile-water { background: #1e3a8a; }
+        .tile-gate { background: #b45309; }
+        .tile-daycare { background: #831843; }
+
+        .dpad {
+            display: grid;
+            grid-template-columns: repeat(3, 45px);
+            grid-template-rows: repeat(2, 40px);
+            gap: 4px;
+            justify-content: center;
+            margin-bottom: 10px;
+        }
+        .dpad button { padding: 5px; font-size: 16px; }
+
+        .battle-arena {
+            display: none;
+            flex-direction: column;
+            gap: 8px;
+            width: 100%;
+        }
+        .battle-side {
+            background: rgba(15, 23, 42, 0.85);
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 8px 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .battle-side.enemy-side { border-color: #f43f5e; }
+        .battle-side.player-side { border-color: #22c55e; }
+        .battle-info-title { font-size: 13px; font-weight: bold; color: #facc15; }
+        
+        .hp-bar-container {
+            width: 120px;
+            background: #334155;
+            border-radius: 4px;
+            height: 10px;
+            overflow: hidden;
+            margin-top: 4px;
+            border: 1px solid #475569;
+        }
+        .hp-bar-fill {
+            height: 100%;
+            background: #22c55e;
+            width: 100%;
+            transition: width 0.3s ease;
+        }
+
+        .screen-title { font-size: 16px; font-weight: bold; color: #facc15; margin-bottom: 4px; text-align: center; }
+        .screen-desc { font-size: 12px; color: #94a3b8; text-align: center; }
+        .log-box { font-size: 12px; color: #4ade80; margin-top: 8px; font-weight: 500; text-align: center; border-top: 1px dashed #334155; padding-top: 6px; }
+
+        .btn-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        button {
+            background: #38bdf8;
+            color: #0f172a;
+            border: none;
+            padding: 10px;
+            border-radius: 8px;
+            font-weight: 800;
+            cursor: pointer;
+            font-size: 13px;
+            transition: 0.15s;
+        }
+        button:active { transform: scale(0.96); }
+        button.btn-danger { background: #f43f5e; color: #fff; }
+        button.btn-success { background: #22c55e; color: #fff; }
+        button.btn-warn { background: #f59e0b; color: #fff; }
+        button.btn-revive { background: #a855f7; color: #fff; }
+        button.btn-save { background: #10b981; color: #fff; }
+        button.btn-load { background: #6366f1; color: #fff; }
+        button.btn-heal { background: #06b6d4; color: #fff; grid-column: span 2; }
+        button.btn-egg { background: #ec4899; color: #fff; }
+        button.btn-quest { background: #eab308; color: #000; }
+
+        .team-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-top: 10px;
+            max-height: 140px;
+            overflow-y: auto;
+        }
+        .team-item {
+            background: #334155;
+            padding: 8px;
+            border-radius: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+        }
+        .badge-box {
+            font-size: 12px;
+            color: #f43f5e;
+            text-align: center;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+
+        .type-tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold; display: inline-block; margin-left: 4px; }
+        .type-feu { background: #ef4444; color: white; }
+        .type-eau { background: #3b82f6; color: white; }
+        .type-plante { background: #22c55e; color: white; }
+        .type-electrique { background: #eab308; color: #000; }
+        .type-roche { background: #78716c; color: white; }
+        .type-psy { background: #ec4899; color: white; }
+        .type-combat { background: #c2410c; color: white; }
+        .type-sol { background: #ca8a04; color: white; }
+        .type-vol { background: #60a5fa; color: #000; }
+        .type-normal { background: #94a3b8; color: white; }
+    </style>
+</head>
+<body>
+
+    <div class="game-card">
+        <h1>Pokémon RPG Master</h1>
+
+        <div class="status-bar">
+            <div>💰 <span id="money">5000</span> ₽</div>
+            <div>🔴 <span id="balls">10</span> Balls</div>
+            <div>🧪 <span id="potions">5</span> Pot.</div>
+            <div>🩹 <span id="bandages">2</span> Pan.</div>
+        </div>
+
+        <div class="badge-box">🏅 Badges obtenus : <span id="badgesList">Aucun</span></div>
+
+        <div class="screen-box">
+            <!-- Mode Menu Standard -->
+            <div id="standardScreen">
+                <div id="screenTitle" class="screen-title">Bienvenue Dresseur !</div>
+                <div id="screenDesc" class="screen-desc">Choisis ta destination ou explore la carte.</div>
+            </div>
+
+            <!-- Mode Carte Interactive -->
+            <div id="mapScreen" style="display:none;">
+                <div id="mapZoneTitle" class="screen-title" style="font-size: 14px;">🏠 Bourg Départ</div>
+                <div id="mapGrid" class="map-grid"></div>
+            </div>
+
+            <!-- Mode Quêtes / Succès -->
+            <div id="questScreen" style="display:none;">
+                <div class="screen-title" style="margin-bottom:2px;">🏆 Panneau des Succès</div>
+                <div id="questContainer" class="team-list"></div>
+            </div>
+
+            <!-- Mode Combat -->
+            <div id="battleArena" class="battle-arena">
+                <div class="battle-side enemy-side">
+                    <div>
+                        <div class="battle-info-title"><span id="battleEnemyName">Ennemi</span> <span id="battleEnemyTypeTag" class="type-tag type-feu">Feu</span></div>
+                        <div style="font-size: 11px; color:#f87171;" id="battleEnemyLevel">Niv. 1</div>
+                    </div>
+                    <div style="text-align: right;">
+                        <span style="font-size: 11px;" id="battleEnemyHpText">PV: 0/0</span>
+                        <div class="hp-bar-container">
+                            <div id="enemyHpBar" class="hp-bar-fill"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="battle-side player-side">
+                    <div>
+                        <div class="battle-info-title"><span id="battlePlayerName">Mon Pokémon</span> <span id="battlePlayerTypeTag" class="type-tag type-feu">Feu</span></div>
+                        <div style="font-size: 11px; color:#4ade80;" id="battlePlayerLevel">Niv. 1</div>
+                    </div>
+                    <div style="text-align: right;">
+                        <span style="font-size: 11px;" id="battlePlayerHpText">PV: 0/0</span>
+                        <div class="hp-bar-container">
+                            <div id="playerHpBar" class="hp-bar-fill"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="gameLog" class="log-box">Prêt pour devenir le Maître ?</div>
+        </div>
+
+        <!-- MENU PRINCIPAL -->
+        <div id="menuMain" class="btn-grid">
+            <button onclick="openMap()">🗺️ Carte du Monde</button>
+            <button onclick="showTournaments()" class="btn-warn">🏆 Tournois & Arènes</button>
+            <button onclick="showShop()">🏪 Boutique</button>
+            <button onclick="showTeam('menu')">🎒 Mes Pokémon (<span id="teamCount">1</span>)</button>
+            <button onclick="healAtCenter()" class="btn-heal">🏥 Centre Pokémon (Soin Gratuit)</button>
+            <button onclick="openDaycare()" class="btn-egg">🥚 Pension (<span id="eggStatus">Prêt</span>)</button>
+            <button onclick="openQuests()" class="btn-quest">📜 Quêtes & Succès</button>
+            <button onclick="saveGameToFile()" class="btn-save">💾 Sauvegarder</button>
+            <button onclick="document.getElementById('importFile').click()" class="btn-load" style="grid-column: span 2;">📂 Charger</button>
+            <input type="file" id="importFile" style="display:none" onchange="loadGameFromFile(event)">
+        </div>
+
+        <!-- CONTRÔLES CARTE INTERACTIVE -->
+        <div id="menuMap" style="display:none; text-align:center;">
+            <div class="dpad">
+                <div></div>
+                <button onclick="movePlayer(0, -1)">⬆️</button>
+                <div></div>
+                <button onclick="movePlayer(-1, 0)">⬅️</button>
+                <button onclick="movePlayer(0, 1)">⬇️</button>
+                <button onclick="movePlayer(1, 0)">➡️</button>
+            </div>
+            <div style="font-size: 11px; color: #94a3b8; margin-bottom: 8px;">
+                🥚 P = Pension | 🎁 = Objet | 🌲 = Forêt | ⛰️ = Grotte | 🌋 = Volcan
+            </div>
+            <button onclick="backToMenu()" class="btn-danger" style="width:100%;">⬅️ Quitter la Carte</button>
+        </div>
+
+        <!-- MENU PENSION (DAY-CARE) -->
+        <div id="menuDaycare" style="display:none; text-align:center;">
+            <div id="daycareDesc" style="font-size: 12px; color: #94a3b8; margin-bottom: 10px;">Confie deux Pokémon à la pension pour élever un œuf !</div>
+            <div id="daycareContainer" class="team-list" style="margin-bottom: 10px;"></div>
+            <button id="btnHatchEgg" onclick="hatchEgg()" class="btn-success" style="width:100%; margin-bottom:6px; display:none;">🐣 Faire éclore l'œuf !</button>
+            <button onclick="backToMenu()" class="btn-danger" style="width:100%;">⬅️ Retour</button>
+        </div>
+
+        <!-- CHOIX DES TOURNOIS -->
+        <div id="menuTournaments" class="btn-grid" style="display:none;">
+            <button onclick="startTournament(1)">🏆 Tournoi Débutant (1500 ₽)</button>
+            <button onclick="startTournament(2)">🏆 Tournoi Expert (4500 ₽)</button>
+            <button onclick="startTournament(3)">🏆 Tournoi Maître (10000 ₽)</button>
+            <button onclick="backToMenu()" class="btn-danger" style="grid-column: span 2;">⬅️ Retour</button>
+        </div>
+
+        <!-- MENU COMBAT -->
+        <div id="menuCombat" class="btn-grid" style="display:none;">
+            <button id="btnAtk1" onclick="useAttack(0)">⚔️ Attaque 1</button>
+            <button id="btnAtk2" onclick="useAttack(1)">🔥 Attaque 2</button>
+            <button onclick="usePotion()" class="btn-success">🧪 Potion</button>
+            <button id="btnCatch" onclick="catchMonster()" class="btn-warn">🔴 Capturer</button>
+            <button onclick="openTeamInBattle()" class="btn-warn" style="background:#8b5cf6; color:#fff;">🔄 Changer</button>
+            <button id="btnRun" onclick="runAway()" class="btn-danger">🏃 Fuite</button>
+        </div>
+
+        <!-- BOUTIQUE -->
+        <div id="menuShop" class="btn-grid" style="display:none;">
+            <button onclick="buyItem('ball', 50)">🔴 Pokéball (50 ₽)</button>
+            <button onclick="buyItem('potion', 40)">🧪 Potion (40 ₽)</button>
+            <button onclick="buyItem('bandage', 30)">🩹 Pansement (30 ₽)</button>
+            <button onclick="backToMenu()" class="btn-danger" style="grid-column: span 1;">⬅️ Retour</button>
+        </div>
+
+        <!-- GESTION ÉQUIPE -->
+        <div id="menuTeam" style="display:none;">
+            <div id="teamContainer" class="team-list"></div>
+            <button id="teamBackBtn" onclick="backToMenu()" class="btn-danger" style="width:100%; margin-top:10px;">⬅️ Retour</button>
+        </div>
+    </div>
+    <script>
+        let money = 5000;
+        let pokeballs = 10;
+        let potions = 5;
+        let bandages = 2;
+        let activePokemonIndex = 0;
+        let badges = [];
+
+        let quests = [
+            { id: 'catch_3', title: "Collectionneur Novice", desc: "Capturer 3 Pokémon", target: 3, current: 0, reward: 1000, claimed: false },
+            { id: 'shiny_1', title: "Chance Insolente", desc: "Trouver ou éclore 1 Shiny", target: 1, current: 0, reward: 3000, claimed: false },
+            { id: 'egg_1', title: "Éleveur en Herbe", desc: "Faire éclore 1 œuf à la pension", target: 1, current: 0, reward: 2000, claimed: false },
+            { id: 'badge_1', title: "Premier Trophée", desc: "Remporter un Tournoi d'Arène", target: 1, current: 0, reward: 2500, claimed: false }
+        ];
+
+        let daycare = {
+            parent1: null,
+            parent2: null,
+            hasEgg: false,
+            stepsWalked: 0,
+            stepsRequired: 10
+        };
+
+        let team = [
+            { 
+                id: 1, name: "Salameche", type: "feu", level: 1, hp: 30, maxHp: 30, exp: 0, expToEvolve: 20, stage1: "Reptincel", stage2: "Dracaufeu", isShiny: false,
+                attacks: [
+                    { name: "Griffe", type: "normal", power: 8 },
+                    { name: "Flammèche", type: "feu", power: 14 }
+                ]
+            }
+        ];
+
+        const zonesData = {
+            1: [
+                { name: "Chenipan", type: "plante", baseHp: 18, atk: 4, stage1: "Chrysacier", stage2: "Papilusion", attacks: [{name: "Charge", type: "normal", power: 5}, {name: "Fouet Lianes", type: "plante", power: 9}] },
+                { name: "Pikachu", type: "electrique", baseHp: 20, atk: 6, stage1: "Raichu", stage2: "Raichu Alola", attacks: [{name: "Eclair", type: "electrique", power: 10}, {name: "Vive-Attaque", type: "normal", power: 8}] },
+                { name: "Stari", type: "eau", baseHp: 22, atk: 5, stage1: "Staross", stage2: "Staross Mega", attacks: [{name: "Pistolet à O", type: "eau", power: 10}, {name: "Entaille", type: "normal", power: 7}] }
+            ],
+            2: [
+                { name: "Racaillou", type: "roche", baseHp: 35, atk: 9, stage1: "Gravalanch", stage2: "Grolem", attacks: [{name: "Jet-Pierres", type: "roche", power: 13}, {name: "Séisme", type: "sol", power: 18}] },
+                { name: "Abra", type: "psy", baseHp: 30, atk: 11, stage1: "Kadabra", stage2: "Alakazam", attacks: [{name: "Choc Mental", type: "psy", power: 15}, {name: "Entaille", type: "normal", power: 6}] },
+                { name: "Machoc", type: "combat", baseHp: 40, atk: 10, stage1: "Machopeur", stage2: "Mackogneur", attacks: [{name: "Poing-Karaté", type: "combat", power: 14}, {name: "Coup d'Boule", type: "normal", power: 10}] }
+            ],
+            3: [
+                { name: "Caninos", type: "feu", baseHp: 60, atk: 15, stage1: "Arcanin", stage2: "Arcanin Supreme", attacks: [{name: "Flammèche", type: "feu", power: 22}, {name: "Crocs Feu", type: "feu", power: 30}] },
+                { name: "Electabuzz", type: "electrique", baseHp: 65, atk: 17, stage1: "Electivire", stage2: "Electivire Prime", attacks: [{name: "Poing Eclair", type: "electrique", power: 24}, {name: "Tonnerre", type: "electrique", power: 32}] }
+            ]
+        };
+
+        let worldMap = [
+            ['T', 'P', 'F', 'F', 'W', 'C', 'C', 'I'],
+            ['T', 'F', 'F', 'I', 'W', 'C', 'C', 'C'],
+            ['F', 'F', 'F', 'F', 'C', 'C', 'G', 'V'],
+            ['W', 'W', 'F', 'C', 'C', 'W', 'V', 'V'],
+            ['I', 'W', 'C', 'C', 'W', 'W', 'V', 'I']
+        ];
+        let playerPos = { x: 0, y: 0 };
+        let previousModeBeforeCombat = 'MENU';
+
+        let currentEnemy = null;
+        let gameMode = 'MENU';
+        let currentTournamentData = null;
+        let tournamentTrainersQueue = [];
+        let currentTrainerPokemonQueue = [];
+
+        function log(msg) {
+            document.getElementById('gameLog').innerText = msg;
+        }
+
+        function checkQuestProgress(questId, amount = 1) {
+            quests.forEach(q => {
+                if (q.id === questId && !q.claimed) {
+                    q.current = Math.min(q.target, q.current + amount);
+                    if (q.current >= q.target) {
+                        log(`📜 Succès débloqué : ${q.title} ! Récupère ta récompense.`);
+                    }
+                }
+            });
+        }
+        function updateUI() {
+            document.getElementById('money').innerText = money;
+            document.getElementById('balls').innerText = pokeballs;
+            document.getElementById('potions').innerText = potions;
+            document.getElementById('bandages').innerText = bandages;
+            document.getElementById('teamCount').innerText = team.length;
+            document.getElementById('badgesList').innerText = badges.length > 0 ? badges.join(', ') : "Aucun";
+
+            let eggText = "Pas d'œuf";
+            if (daycare.hasEgg) eggText = "🥚 Œuf prêt !";
+            else if (daycare.parent1 && daycare.parent2) eggText = `🥚 En couve (${daycare.stepsWalked}/${daycare.stepsRequired})`;
+            document.getElementById('eggStatus').innerText = eggText;
+
+            const active = team[activePokemonIndex];
+            
+            document.getElementById('standardScreen').style.display = 'none';
+            document.getElementById('mapScreen').style.display = 'none';
+            document.getElementById('questScreen').style.display = 'none';
+            document.getElementById('battleArena').style.display = 'none';
+
+            if (gameMode === 'MENU') {
+                document.getElementById('standardScreen').style.display = 'block';
+                document.getElementById('screenTitle').innerText = `${active.isShiny ? '✨ ' : ''}${active.name} (Niv. ${active.level})`;
+                document.getElementById('screenDesc').innerText = `Type: ${active.type.toUpperCase()} | PV: ${active.hp}/${active.maxHp} | EXP: ${active.exp}/${active.expToEvolve}`;
+            } else if (gameMode === 'MAP') {
+                document.getElementById('mapScreen').style.display = 'block';
+                renderMap();
+            } else if (gameMode === 'QUESTS') {
+                document.getElementById('questScreen').style.display = 'block';
+                renderQuestsList();
+            } else {
+                document.getElementById('battleArena').style.display = 'flex';
+                if (currentEnemy) {
+                    document.getElementById('battleEnemyName').innerText = `${currentEnemy.isShiny ? '✨ ' : ''}${currentEnemy.name}`;
+                    document.getElementById('battleEnemyLevel').innerText = `Niv. ${currentEnemy.level}`;
+                    updateTypeTag('battleEnemyTypeTag', currentEnemy.type);
+                    document.getElementById('battleEnemyHpText').innerText = `PV: ${Math.max(0, currentEnemy.hp)}/${currentEnemy.maxHp}`;
+                    document.getElementById('enemyHpBar').style.width = Math.max(0, (currentEnemy.hp / currentEnemy.maxHp) * 100) + '%';
+                }
+
+                document.getElementById('battlePlayerName').innerText = `${active.isShiny ? '✨ ' : ''}${active.name}`;
+                document.getElementById('battlePlayerLevel').innerText = `Niv. ${active.level}`;
+                updateTypeTag('battlePlayerTypeTag', active.type);
+                document.getElementById('battlePlayerHpText').innerText = `PV: ${Math.max(0, active.hp)}/${active.maxHp}`;
+                document.getElementById('playerHpBar').style.width = Math.max(0, (active.hp / active.maxHp) * 100) + '%';
+
+                if (active.attacks && active.attacks.length >= 2) {
+                    document.getElementById('btnAtk1').innerText = `⚔️ ${active.attacks[0].name}`;
+                    document.getElementById('btnAtk2').innerText = `🔥 ${active.attacks[1].name}`;
+                }
+            }
+        }
+
+        function openQuests() {
+            gameMode = 'QUESTS';
+            hideAllMenus();
+            updateUI();
+        }
+
+        function renderQuestsList() {
+            const container = document.getElementById('questContainer');
+            container.innerHTML = "";
+
+            quests.forEach((q, index) => {
+                const div = document.createElement('div');
+                div.className = 'team-item';
+                
+                let btnHtml = "";
+                if (q.claimed) {
+                    btnHtml = `<span style="color:#22c55e; font-weight:bold;">✔️ Validé</span>`;
+                } else if (q.current >= q.target) {
+                    btnHtml = `<button onclick="claimQuest(${index})" class="btn-success">🎁 Réclamer</button>`;
+                } else {
+                    btnHtml = `<span style="color:#94a3b8;">${q.current}/${q.target}</span>`;
+                }
+
+                div.innerHTML = `<div><strong>${q.title}</strong><br><span style="font-size:10px; color:#94a3b8;">${q.desc} (+${q.reward} ₽)</span></div> ${btnHtml}`;
+                container.appendChild(div);
+            });
+
+            // Bouton retour intégré en bas du panneau des succès
+            const backDiv = document.createElement('div');
+            backDiv.style.marginTop = '6px';
+            backDiv.innerHTML = `<button onclick="backToMenu()" class="btn-danger" style="width:100%; padding:6px; font-size:12px;">⬅️ Retour</button>`;
+            container.appendChild(backDiv);
+        }
+
+        function claimQuest(index) {
+            let q = quests[index];
+            if (!q.claimed && q.current >= q.target) {
+                q.claimed = true;
+                money += q.reward;
+                log(`🎉 Récompense récupérée : +${q.reward} ₽ !`);
+                updateUI();
+            }
+        }
+
+        function openDaycare() {
+            hideAllMenus();
+            document.getElementById('menuDaycare').style.display = 'block';
+            document.getElementById('standardScreen').style.display = 'block';
+            document.getElementById('screenTitle').innerText = "🥚 Pension Pokémon";
+            
+            const container = document.getElementById('daycareContainer');
+            container.innerHTML = "";
+
+            let descMsg = "Confie deux Pokémon pour élever un œuf en marchant sur la carte !";
+            if (daycare.hasEgg) {
+                descMsg = "🎉 Un œuf magnifique est prêt à éclore !";
+                document.getElementById('btnHatchEgg').style.display = 'block';
+            } else if (daycare.parent1 && daycare.parent2) {
+                descMsg = `🔄 Les parents s'entendent bien... Progrès : ${daycare.stepsWalked}/${daycare.stepsRequired} pas.`;
+                document.getElementById('btnHatchEgg').style.display = 'none';
+            } else {
+                document.getElementById('btnHatchEgg').style.display = 'none';
+            }
+            document.getElementById('daycareDesc').innerText = descMsg;
+
+            if (daycare.parent1 || daycare.parent2) {
+                const p1Text = daycare.parent1 ? `${daycare.parent1.name} (Niv.${daycare.parent1.level})` : "Vide";
+                const p2Text = daycare.parent2 ? `${daycare.parent2.name} (Niv.${daycare.parent2.level})` : "Vide";
+                
+                const div = document.createElement('div');
+                div.className = 'team-item';
+                div.innerHTML = `<div><strong>Parents à la pension :</strong><br>1️⃣ ${p1Text}<br>2️⃣ ${p2Text}</div> <button onclick="retrieveParents()" class="btn-danger">Récupérer</button>`;
+                container.appendChild(div);
+            } else {
+                let info = document.createElement('div');
+                info.style.fontSize = '12px';
+                info.style.color = '#94a3b8';
+                info.innerText = "Sélectionne 2 Pokémon de ton équipe à confier :";
+                container.appendChild(info);
+
+                team.forEach((poke, index) => {
+                    const div = document.createElement('div');
+                    div.className = 'team-item';
+                    div.innerHTML = `<div>${poke.name} (Niv. ${poke.level})</div> <button onclick="depositToDaycare(${index})" class="btn-success">Confier</button>`;
+                    container.appendChild(div);
+                });
+            }
+        }
+
+        function depositToDaycare(index) {
+            if (team.length <= 1 && !daycare.parent1) {
+                alert("Tu dois garder au moins un Pokémon dans ton équipe !");
+                return;
+            }
+            let poke = team.splice(index, 1)[0];
+            if (activePokemonIndex >= team.length) activePokemonIndex = Math.max(0, team.length - 1);
+
+            if (!daycare.parent1) {
+                daycare.parent1 = poke;
+                log(`Déposé à la pension : ${poke.name}`);
+            } else if (!daycare.parent2) {
+                daycare.parent2 = poke;
+                log(`Déposé à la pension : ${poke.name}`);
+            }
+            updateUI();
+            openDaycare();
+        }
+
+        function retrieveParents() {
+            if (daycare.parent1) team.push(daycare.parent1);
+            if (daycare.parent2) team.push(daycare.parent2);
+            daycare.parent1 = null;
+            daycare.parent2 = null;
+            daycare.hasEgg = false;
+            daycare.stepsWalked = 0;
+            log("Tu as récupéré tes Pokémon de la pension.");
+            updateUI();
+            openDaycare();
+        }
+
+        function hatchEgg() {
+            if (!daycare.hasEgg) return;
+            const babies = [
+                { name: "Salameche", type: "feu", baseHp: 30, atk: 8, stage1: "Reptincel", stage2: "Dracaufeu", attacks: [{name:"Griffe", type:"normal", power:8}, {name:"Flammèche", type:"feu", power:14}] },
+                { name: "Bulbizarre", type: "plante", baseHp: 32, atk: 7, stage1: "Herbizarre", stage2: "Florizarre", attacks: [{name:"Charge", type:"normal", power:6}, {name:"Fouet Lianes", type:"plante", power:10}] },
+                { name: "Carapuce", type: "eau", baseHp: 31, atk: 7, stage1: "Carabaffe", stage2: "Tortank", attacks: [{name:"Charge", type:"normal", power:6}, {name:"Pistolet à O", type:"eau", power:10}] }
+            ];
+            let babyTemplate = babies[Math.floor(Math.random() * babies.length)];
+            let isShiny = Math.random() < 0.05;
+
+            let newBaby = {
+                id: Date.now(),
+                name: babyTemplate.name,
+                type: babyTemplate.type,
+                level: 1,
+                hp: babyTemplate.baseHp,
+                maxHp: babyTemplate.baseHp,
+                exp: 0,
+                expToEvolve: 20,
+                attacks: babyTemplate.attacks,
+                stage1: babyTemplate.stage1,
+                stage2: babyTemplate.stage2,
+                isShiny: isShiny
+            };
+
+            team.push(newBaby);
+            daycare.hasEgg = false;
+            daycare.stepsWalked = 0;
+
+            checkQuestProgress('egg_1', 1);
+            if (isShiny) checkQuestProgress('shiny_1', 1);
+
+            log(`🐣 L'œuf a éclos ! Un nouveau ${newBaby.isShiny ? '✨ SHINY ' : ''}${newBaby.name} rejoint ton équipe !`);
+            alert(`Félicitations !\nTon œuf a éclos en un magnifique ${newBaby.name} !`);
+            backToMenu();
+        }
+        function openMap() {
+            gameMode = 'MAP';
+            hideAllMenus();
+            document.getElementById('menuMap').style.display = 'block';
+            log("Utilise les flèches pour explorer la région ! (P = Pension)");
+            updateUI();
+        }
+
+        function renderMap() {
+            const grid = document.getElementById('mapGrid');
+            grid.innerHTML = "";
+            
+            const tileNames = {
+                'T': '🏠 Bourg Départ',
+                'P': '🥚 Pension Pokémon (Élevage)',
+                'F': '🌲 Forêt de Jade (Niv. 1-3)',
+                'C': '⛰️ Mont Sélénite (Niv. 4-7)',
+                'V': '🌋 Volcan (Niv. 8-12)',
+                'G': '🚧 Poste de Garde (Badge Roche requis)',
+                'I': '✨ Zone de Fouille'
+            };
+            const currentTile = worldMap[playerPos.y][playerPos.x];
+            document.getElementById('mapZoneTitle').innerText = tileNames[currentTile] || "Exploration";
+
+            for (let y = 0; y < worldMap.length; y++) {
+                for (let x = 0; x < worldMap[y].length; x++) {
+                    const cell = document.createElement('div');
+                    const type = worldMap[y][x];
+                    cell.className = 'map-tile';
+
+                    if (type === 'T') { cell.classList.add('tile-town'); cell.innerText = '🏠'; }
+                    else if (type === 'P') { cell.classList.add('tile-daycare'); cell.innerText = '🥚'; }
+                    else if (type === 'F') { cell.classList.add('tile-forest'); cell.innerText = '🌿'; }
+                    else if (type === 'C') { cell.classList.add('tile-cave'); cell.innerText = '⛰️'; }
+                    else if (type === 'V') { cell.classList.add('tile-volcano'); cell.innerText = '🌋'; }
+                    else if (type === 'W') { cell.classList.add('tile-water'); cell.innerText = '🌊'; }
+                    else if (type === 'G') { cell.classList.add('tile-gate'); cell.innerText = '🚧'; }
+                    else if (type === 'I') { cell.classList.add('tile-forest'); cell.innerText = '🎁'; }
+
+                    if (x === playerPos.x && y === playerPos.y) {
+                        cell.innerText = '🧢';
+                        cell.style.border = '2px solid #facc15';
+                    }
+                    grid.appendChild(cell);
+                }
+            }
+        }
+
+        function movePlayer(dx, dy) {
+            const newX = playerPos.x + dx;
+            const newY = playerPos.y + dy;
+
+            if (newY < 0 || newY >= worldMap.length || newX < 0 || newX >= worldMap[0].length) {
+                log("Tu ne peux pas aller plus loin.");
+                return;
+            }
+
+            const targetTile = worldMap[newY][newX];
+            if (targetTile === 'W') { log("🌊 L'eau est trop profonde !"); return; }
+            if (targetTile === 'G' && !badges.includes("🏅 Badge Roche")) {
+                log("🚧 Garde : Gagne d'abord le Badge Roche !");
+                return;
+            }
+
+            playerPos.x = newX;
+            playerPos.y = newY;
+
+            if (daycare.parent1 && daycare.parent2 && !daycare.hasEgg) {
+                daycare.stepsWalked++;
+                if (daycare.stepsWalked >= daycare.stepsRequired) {
+                    daycare.hasEgg = true;
+                    log("🥚 La pension t'appelle : un œuf est prêt !");
+                }
+            }
+
+            renderMap();
+
+            if (targetTile === 'P') {
+                openDaycare();
+                return;
+            }
+
+            if (targetTile === 'I') {
+                worldMap[newY][newX] = 'F';
+                let loot = Math.random();
+                if (loot < 0.5) { pokeballs += 2; log("🎁 Trouvé 2 Pokéballs !"); }
+                else { potions += 2; log("🎁 Trouvé 2 Potions !"); }
+                updateUI();
+                return;
+            }
+
+            if (targetTile === 'F' && Math.random() < 0.45) { previousModeBeforeCombat = 'MAP'; triggerZoneCombat(1); }
+            else if (targetTile === 'C' && Math.random() < 0.45) { previousModeBeforeCombat = 'MAP'; triggerZoneCombat(2); }
+            else if (targetTile === 'V' && Math.random() < 0.45) { previousModeBeforeCombat = 'MAP'; triggerZoneCombat(3); }
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (gameMode !== 'MAP') return;
+            if (e.key === 'ArrowUp') movePlayer(0, -1);
+            if (e.key === 'ArrowDown') movePlayer(0, 1);
+            if (e.key === 'ArrowLeft') movePlayer(-1, 0);
+            if (e.key === 'ArrowRight') movePlayer(1, 0);
+        });
+
+        function healAtCenter() {
+            team.forEach(poke => { poke.hp = poke.maxHp; });
+            log("🏥 Équipe soignée au Centre Pokémon !");
+            alert("Centre Pokémon :\nToute ton équipe est rétablie à 100% !");
+            updateUI();
+        }
+
+        function saveGameToFile() {
+            const saveData = { money, pokeballs, potions, bandages, activePokemonIndex, badges, team, playerPos, worldMap, daycare, quests };
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(saveData, null, 2));
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", "sauvegarde_pokemon_rpg.json");
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+            log("💾 Fichier de sauvegarde téléchargé !");
+        }
+
+        function loadGameFromFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    money = data.money; pokeballs = data.pokeballs; potions = data.potions; bandages = data.bandages;
+                    activePokemonIndex = data.activePokemonIndex; badges = data.badges || []; team = data.team;
+                    if (data.playerPos) playerPos = data.playerPos;
+                    if (data.worldMap) worldMap = data.worldMap;
+                    if (data.daycare) daycare = data.daycare;
+                    if (data.quests) quests = data.quests;
+                    log("📂 Partie chargée avec succès !");
+                    updateUI();
+                } catch (err) { alert("Erreur de lecture du fichier."); }
+            };
+            reader.readAsText(file);
+        }
+
+        function hideAllMenus() {
+            document.getElementById('menuMain').style.display = 'none';
+            document.getElementById('menuMap').style.display = 'none';
+            document.getElementById('menuDaycare').style.display = 'none';
+            document.getElementById('menuTournaments').style.display = 'none';
+            document.getElementById('menuCombat').style.display = 'none';
+            document.getElementById('menuShop').style.display = 'none';
+            document.getElementById('menuTeam').style.display = 'none';
+            document.getElementById('questScreen').style.display = 'none';
+        }
+
+        function backToMenu() {
+            gameMode = 'MENU';
+            hideAllMenus();
+            document.getElementById('menuMain').style.display = 'grid';
+            updateUI();
+        }
+
+        function returnAfterCombat() {
+            if (previousModeBeforeCombat === 'MAP') openMap();
+            else backToMenu();
+        }
+
+        function showTournaments() {
+            hideAllMenus();
+            document.getElementById('menuTournaments').style.display = 'grid';
+            document.getElementById('screenTitle').innerText = "🏆 Tournois d'Arène";
+            document.getElementById('screenDesc').innerText = "Gagne des badges pour progresser !";
+        }
+
+        function showShop() {
+            hideAllMenus();
+            document.getElementById('menuShop').style.display = 'grid';
+            document.getElementById('screenTitle').innerText = "🏪 Boutique Pokémon";
+            document.getElementById('screenDesc').innerText = "Fais le plein de matériel.";
+        }
+
+        function buyItem(item, price) {
+            if (money >= price) {
+                money -= price;
+                if (item === 'ball') pokeballs++;
+                if (item === 'potion') potions++;
+                if (item === 'bandage') bandages++;
+                log(`Achat réussi ! -${price} ₽`);
+            } else { log("Pas assez d'argent !"); }
+            updateUI();
+        }
+
+        function showTeam(fromWhere) {
+            hideAllMenus();
+            document.getElementById('menuTeam').style.display = 'block';
+            document.getElementById('standardScreen').style.display = 'block';
+            document.getElementById('mapScreen').style.display = 'none';
+            document.getElementById('battleArena').style.display = 'none';
+            document.getElementById('screenTitle').innerText = "🎒 Ton Équipe Pokémon";
+            document.getElementById('screenDesc').innerText = "Choisis ton Pokémon ou réanime un K.O.";
+
+            const container = document.getElementById('teamContainer');
+            container.innerHTML = "";
+
+            team.forEach((poke, index) => {
+                const isCurrent = index === activePokemonIndex;
+                const div = document.createElement('div');
+                div.className = 'team-item';
+                
+                let actionHtml = poke.hp <= 0 ? 
+                    `<button onclick="revivePokemon(${index})" class="btn-revive">🩹 Réanimer</button>` : 
+                    `<button onclick="selectActivePokemon('${fromWhere}', ${index})" class="${isCurrent ? 'btn-success' : ''}">${isCurrent ? 'ACTIF' : 'CHOISIR'}</button>`;
+
+                div.innerHTML = `<div><strong>${poke.isShiny ? '✨ ' : ''}${poke.name}</strong> (${poke.type.toUpperCase()}) (Niv. ${poke.level})<br>❤️ ${poke.hp}/${poke.maxHp} HP</div> ${actionHtml}`;
+                container.appendChild(div);
+            });
+
+            const backBtn = document.getElementById('teamBackBtn');
+            if (fromWhere === 'battle') {
+                backBtn.setAttribute("onclick", "resumeBattleFromTeam()");
+                backBtn.innerText = "⬅️ Retour au Combat";
+            } else {
+                backBtn.setAttribute("onclick", "backToMenu()");
+                backBtn.innerText = "⬅️ Retour";
+            }
+        }
+
+        function revivePokemon(index) {
+            if (bandages > 0) {
+                bandages--;
+                let poke = team[index];
+                poke.hp = Math.floor(poke.maxHp / 2);
+                log(`🩹 ${poke.name} réanimé !`);
+                updateUI();
+                showTeam(document.getElementById('menuCombat').style.display === 'grid' ? 'battle' : 'menu');
+            } else { log("Plus de Pansements !"); }
+        }
+
+        function selectActivePokemon(fromWhere, index) {
+            if (team[index].hp <= 0) { log(`${team[index].name} est K.O. !`); return; }
+            activePokemonIndex = index;
+            log(`${team[index].name} entre en piste !`);
+            if (fromWhere === 'battle') resumeBattleFromTeam();
+            else showTeam('menu');
+        }
+
+        function openTeamInBattle() { showTeam('battle'); }
+        function resumeBattleFromTeam() { hideAllMenus(); document.getElementById('menuCombat').style.display = 'grid'; updateUI(); }
+        function getEffectiveMultiplier(attType, defType) {
+            const chart = {
+                feu: { plante: 2.0, roche: 0.5, feu: 0.5, eau: 0.5 },
+                eau: { feu: 2.0, roche: 2.0, sol: 2.0, eau: 0.5, plante: 0.5 },
+                plante: { eau: 2.0, roche: 2.0, sol: 2.0, feu: 0.5, plante: 0.5 },
+                electrique: { eau: 2.0, vol: 2.0, electrique: 0.5, plante: 0.5, sol: 0.0 },
+                roche: { feu: 2.0, vol: 2.0, combat: 0.5, sol: 0.5 },
+                psy: { combat: 2.0, psy: 0.5 },
+                combat: { roche: 2.0, normal: 2.0, vol: 0.5, psy: 0.5 },
+                sol: { feu: 2.0, electrique: 2.0, roche: 2.0, plante: 0.5, vol: 0.0 }
+            };
+            if (chart[attType] && chart[attType][defType] !== undefined) return chart[attType][defType];
+            return 1.0;
+        }
+
+        function updateTypeTag(elementId, typeName) {
+            const el = document.getElementById(elementId);
+            if (!el) return;
+            el.innerText = typeName.toUpperCase();
+            el.className = `type-tag type-${typeName}`;
+        }
+
+        function triggerZoneCombat(zoneId) {
+            let active = team[activePokemonIndex];
+            if (active.hp <= 0) { log("⚠️ Ton Pokémon actif est K.O. !"); return; }
+
+            const list = zonesData[zoneId];
+            const template = list[Math.floor(Math.random() * list.length)];
+            let lvl = zoneId === 1 ? Math.floor(Math.random() * 3) + 1 : zoneId === 2 ? Math.floor(Math.random() * 4) + 4 : Math.floor(Math.random() * 5) + 8;
+            let isShiny = Math.random() < 0.02;
+
+            currentEnemy = {
+                name: template.name, type: template.type, level: lvl,
+                hp: Math.floor((template.baseHp + (lvl * 4)) * (isShiny ? 1.5 : 1)),
+                maxHp: Math.floor((template.baseHp + (lvl * 4)) * (isShiny ? 1.5 : 1)),
+                attacks: template.attacks, stage1: template.stage1, stage2: template.stage2, isShiny: isShiny
+            };
+
+            gameMode = 'COMBAT';
+            hideAllMenus();
+            document.getElementById('menuCombat').style.display = 'grid';
+            document.getElementById('btnCatch').style.display = 'inline-block';
+            log(isShiny ? "✨ Un Pokémon SHINY rare apparaît !" : `Un ${currentEnemy.name} sauvage surgit !`);
+            updateUI();
+        }
+
+        function usePotion() {
+            let active = team[activePokemonIndex];
+            if (active.hp <= 0) { log("Ton Pokémon est K.O. !"); return; }
+            if (potions > 0) {
+                potions--;
+                active.hp = Math.min(active.maxHp, active.hp + 20);
+                log(`${active.name} récupère 20 PV !`);
+                updateUI();
+            } else { log("Plus de potions !"); }
+        }
+
+        function catchMonster() {
+            if (pokeballs <= 0) { log("Plus de Pokéballs !"); return; }
+            pokeballs--;
+            updateUI();
+
+            let chance = 0.4 + (0.6 * (1 - (currentEnemy.hp / currentEnemy.maxHp)));
+            if (Math.random() < chance) {
+                log(`🎉 ${currentEnemy.name} capturé !`);
+                team.push({
+                    id: Date.now(), name: currentEnemy.name, type: currentEnemy.type, level: currentEnemy.level,
+                    hp: currentEnemy.hp, maxHp: currentEnemy.maxHp, exp: 0, expToEvolve: currentEnemy.level * 25,
+                    attacks: currentEnemy.attacks, stage1: currentEnemy.stage1, stage2: currentEnemy.stage2, isShiny: currentEnemy.isShiny
+                });
+
+                checkQuestProgress('catch_3', 1);
+                if (currentEnemy.isShiny) checkQuestProgress('shiny_1', 1);
+
+                setTimeout(returnAfterCombat, 800);
+            } else { log(`Mince ! ${currentEnemy.name} s'est échappé !`); }
+        }
+
+        function runAway() { log("Fuite réussie !"); returnAfterCombat(); }
+
+        function gainExp(poke, enemyLevel) {
+            let earnedExp = enemyLevel * 5;
+            poke.exp += earnedExp;
+            log(`✨ ${poke.name} gagne ${earnedExp} XP !`);
+
+            while (poke.exp >= poke.expToEvolve) {
+                poke.exp -= poke.expToEvolve;
+                poke.level++;
+                poke.expToEvolve = Math.floor(poke.expToEvolve * 1.8) + 15;
+                poke.maxHp += 15; poke.hp = poke.maxHp;
+
+                if (poke.level === 15 && poke.stage1) { log(`🌟 ${poke.name} évolue en ${poke.stage1} !`); poke.name = poke.stage1; }
+                else if (poke.level === 30 && poke.stage2) { log(`🔥 ÉVOLUTION ULTIME : ${poke.stage2} !`); poke.name = poke.stage2; }
+                else { log(`🎉 ${poke.name} monte au Niveau ${poke.level} !`); }
+            }
+        }
+
+        function startTournament(level) {
+            let active = team[activePokemonIndex];
+            if (active.hp <= 0) { log("Ton Pokémon actif est K.O. !"); return; }
+
+            previousModeBeforeCombat = 'MENU';
+            gameMode = 'TOURNAMENT';
+
+            if (level === 1) {
+                currentTournamentData = { name: "Tournoi Débutant", reward: 1500, badge: "🏅 Badge Roche" };
+                tournamentTrainersQueue = [
+                    { trainer: "Topdresseur Marc", pokemons: [{ name: "Rattata", type: "normal", level: 4, hp: 25, maxHp: 25, attacks: [{name:"Charge", type:"normal", power:6}] }, { name: "Pikachu", type: "electrique", level: 5, hp: 30, maxHp: 30, attacks: [{name:"Eclair", type:"electrique", power:10}] }] },
+                    { trainer: "Arène de Pierre", pokemons: [{ name: "Racaillou", type: "roche", level: 6, hp: 45, maxHp: 45, attacks: [{name:"Jet-Pierres", type:"roche", power:12}] }] }
+                ];
+            } else if (level === 2) {
+                currentTournamentData = { name: "Tournoi Expert", reward: 4500, badge: "🏅 Badge Volcan" };
+                tournamentTrainersQueue = [
+                    { trainer: "Experte Karine", pokemons: [{ name: "Stari", type: "eau", level: 9, hp: 60, maxHp: 60, attacks: [{name:"Pistolet à O", type:"eau", power:14}] }] },
+                    { trainer: "Champion Paul", pokemons: [{ name: "Caninos", type: "feu", level: 13, hp: 100, maxHp: 100, attacks: [{name:"Flammèche", type:"feu", power:22}] }] }
+                ];
+            } else {
+                currentTournamentData = { name: "Tournoi Maître", reward: 10000, badge: "🏅 Badge Ultime" };
+                tournamentTrainersQueue = [
+                    { trainer: "Maître Ethan", pokemons: [{ name: "Abra", type: "psy", level: 18, hp: 150, maxHp: 150, attacks: [{name:"Choc Mental", type:"psy", power:30}] }] },
+                    { trainer: "Dracaufeu", type: "feu", pokemons: [{ name: "Dracaufeu", type: "feu", level: 25, hp: 250, maxHp: 250, attacks: [{name:"Déflagration", type:"feu", power:45}] }] }
+                ];
+            }
+
+            currentTrainerPokemonQueue = [];
+            loadNextTrainerOrPokemon();
+        }
+
+        function loadNextTrainerOrPokemon() {
+            if (currentTrainerPokemonQueue.length === 0) {
+                if (tournamentTrainersQueue.length === 0) {
+                    money += currentTournamentData.reward;
+                    if (!badges.includes(currentTournamentData.badge)) badges.push(currentTournamentData.badge);
+                    
+                    checkQuestProgress('badge_1', 1);
+
+                    let active = team[activePokemonIndex];
+                    if (active.hp > 0) gainExp(active, 20);
+
+                    log(`🏆 ${currentTournamentData.name} REMPORTÉ ! +${currentTournamentData.reward} ₽`);
+                    alert(`Victoire au ${currentTournamentData.name} !\nTu remportes ${currentTournamentData.reward} ₽ et le ${currentTournamentData.badge} !`);
+                    backToMenu();
+                    return;
+                }
+                let nextTrainer = tournamentTrainersQueue.shift();
+                currentTrainerPokemonQueue = nextTrainer.pokemons;
+                log(`Le dresseur ${nextTrainer.trainer} entre en piste !`);
+            }
+
+            currentEnemy = currentTrainerPokemonQueue.shift();
+            currentEnemy.isShiny = false;
+            hideAllMenus();
+            document.getElementById('menuCombat').style.display = 'grid';
+            document.getElementById('btnCatch').style.display = 'none';
+            log(`Ennemi : ${currentEnemy.name} (${currentEnemy.type.toUpperCase()}) Niv. ${currentEnemy.level} !`);
+            updateUI();
+        }
+
+        function useAttack(attackIndex) {
+            if (!currentEnemy) return;
+            let active = team[activePokemonIndex];
+            if (active.hp <= 0) { log("Ton Pokémon est K.O. !"); return; }
+
+            let chosenAttack = active.attacks[attackIndex] || active.attacks[0];
+            let baseDamage = chosenAttack.power + Math.floor(active.level * 1.5);
+            let multiplier = getEffectiveMultiplier(chosenAttack.type, currentEnemy.type);
+            let finalDamage = Math.floor(baseDamage * multiplier);
+
+            currentEnemy.hp -= finalDamage;
+            let effectivenessText = multiplier > 1.0 ? " Super efficace ! 💥" : multiplier < 1.0 && multiplier > 0 ? " Peu efficace... 💧" : "";
+            log(`💥 ${active.name} utilise ${chosenAttack.name} (${finalDamage} dégâts).${effectivenessText}`);
+
+            if (currentEnemy.hp <= 0) {
+                currentEnemy.hp = 0;
+                updateUI();
+                if (gameMode === 'TOURNAMENT') {
+                    setTimeout(loadNextTrainerOrPokemon, 800);
+                } else {
+                    gainExp(active, currentEnemy.level);
+                    setTimeout(returnAfterCombat, 800);
+                }
+                return;
+            }
+
+            let enemyAtk = currentEnemy.attacks ? currentEnemy.attacks[0].power : 8;
+            let enemyDamage = enemyAtk + Math.floor(currentEnemy.level * 1.2);
+            active.hp -= enemyDamage;
+
+            if (active.hp <= 0) {
+                active.hp = 0;
+                log(`❌ ${active.name} est K.O. ! Change de Pokémon.`);
+            } else {
+                log(`${currentEnemy.name} riposte et inflige ${enemyDamage} dégâts.`);
+            }
+            updateUI();
+        }
+
+        function attackEnemy() { useAttack(0); }
+
+        updateUI();
+    </script>
+</body>
+</html>

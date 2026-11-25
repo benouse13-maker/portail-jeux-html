@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>L'Assiette Équilibrée - 2 Joueurs</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Nunito', sans-serif;
+            background-color: #fff7ed;
+            background-image: radial-gradient(#fdba74 1.5px, transparent 1.5px);
+            background-size: 25px 25px;
+            color: #431407;
+            overflow-x: hidden;
+        }
+
+        .card {
+            background: linear-gradient(145deg, #ffffff, #ffedd5);
+            border: 2px solid #ea580c;
+            color: #431407;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            cursor: pointer;
+            user-select: none;
+        }
+        .card:hover:not(.locked) {
+            transform: translateY(-5px) scale(1.05);
+            box-shadow: 0 8px 15px rgba(234, 88, 12, 0.2);
+        }
+        .card-selected {
+            box-shadow: 0 0 0 4px #16a34a, 0 8px 15px rgba(22, 163, 74, 0.3) !important;
+            transform: translateY(-8px) scale(1.05) !important;
+            border-color: #16a34a !important;
+        }
+
+        .grid-cell {
+            background-color: rgba(234, 88, 12, 0.05);
+            border: 2px dashed rgba(234, 88, 12, 0.3);
+            border-radius: 0.75rem;
+            transition: all 0.2s;
+        }
+        .grid-cell.droppable:hover {
+            background-color: rgba(234, 88, 12, 0.15);
+            border-style: solid;
+            border-color: #16a34a;
+            transform: scale(1.02);
+            cursor: pointer;
+        }
+
+        .emoji-shadow { filter: drop-shadow(2px 4px 2px rgba(0,0,0,0.2)); }
+        
+        .screen { display: none; animation: fadeIn 0.4s ease-out; }
+        .screen.active { display: flex; }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: rgba(234, 88, 12, 0.1); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb { background: #ea580c; border-radius: 10px; }
+        
+        .macro-tag {
+            font-size: 0.6rem;
+            background: #fed7aa;
+            color: #9a3412;
+            padding: 2px 4px;
+            border-radius: 4px;
+            font-weight: bold;
+            display: inline-block;
+            margin-top: 2px;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col p-4 md:p-6">
+
+    <!-- ECRAN: ACCUEIL -->
+    <div id="screen-home" class="screen active flex-col items-center justify-center flex-1 max-w-2xl mx-auto w-full text-center">
+        <div class="bg-white/80 p-8 rounded-3xl backdrop-blur-md border border-orange-200 shadow-2xl w-full">
+            <div class="text-7xl mb-2 emoji-shadow">🥗</div>
+            <h1 class="text-4xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-orange-600 to-green-600 drop-shadow-sm mb-2">
+                L'Assiette Équilibrée
+            </h1>
+            <p class="text-2xl font-black text-green-700 mb-2">Mode 2 Joueurs ⚔️</p>
+            <p class="text-lg text-orange-900 mb-8 font-bold opacity-90">Composez le meilleur repas chacun votre tour en 20 portions.</p>
+            
+            <div class="flex flex-col gap-4 max-w-sm mx-auto">
+                <div class="flex flex-col gap-2 mb-2 text-left">
+                    <label class="text-xs font-bold text-orange-800 uppercase">Joueur 1 (Vert)</label>
+                    <input type="text" id="p1-name-input" value="Chef 1" class="px-4 py-2 rounded-xl border border-orange-300 font-bold text-orange-950 focus:outline-none focus:ring-2 focus:ring-green-500">
+                    
+                    <label class="text-xs font-bold text-orange-800 uppercase mt-2">Joueur 2 (Bleu)</label>
+                    <input type="text" id="p2-name-input" value="Chef 2" class="px-4 py-2 rounded-xl border border-orange-300 font-bold text-orange-950 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+
+                <button onclick="startGame()" class="bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 text-white text-2xl font-black py-4 px-8 rounded-2xl shadow-xl transform transition hover:scale-105 border-b-4 border-green-700">
+                    🍽️ Commencer le Duel
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ECRAN: JEU -->
+    <div id="screen-game" class="screen flex-col flex-1 max-w-7xl mx-auto w-full">
+        <!-- Header du jeu -->
+        <header id="game-header" class="flex justify-between items-center bg-white/70 p-4 rounded-2xl mb-4 backdrop-blur-sm border-2 shadow-sm transition-colors">
+            <div>
+                <h2 class="text-2xl md:text-3xl font-black flex items-center gap-2" id="current-player-title">
+                    🥗 Tour de Chef 1
+                </h2>
+                <div class="text-xs font-bold opacity-80" id="round-indicator">Tour 1 / 20</div>
+            </div>
+            <div class="flex gap-4 items-center">
+                <div class="text-right">
+                    <div class="text-xs uppercase font-bold text-gray-600">Score Joueur</div>
+                    <div class="text-3xl font-black text-green-600" id="live-score">0</div>
+                </div>
+                <button onclick="showScreen('screen-home')" class="bg-red-100 hover:bg-red-200 text-red-700 p-2 rounded-xl border border-red-300 transition font-bold text-sm">
+                    ❌ Quitter
+                </button>
+            </div>
+        </header>
+
+        <div class="flex flex-col lg:flex-row gap-6 flex-1">
+            <!-- Zone Grille & Draft -->
+            <div class="flex-1 flex flex-col gap-4">
+                <!-- Draft -->
+                <div class="bg-white/50 p-4 rounded-2xl border border-orange-200 shadow-sm flex flex-col items-center">
+                    <h3 class="text-lg font-bold text-orange-900 mb-2">Choisis un ingrédient à placer :</h3>
+                    <div class="flex justify-center gap-4" id="draft-area">
+                        <!-- Draft généré en JS -->
+                    </div>
+                </div>
+                
+                <!-- Grille -->
+                <div class="bg-white/50 p-4 rounded-2xl border border-orange-200 shadow-sm flex-1 flex items-center justify-center">
+                    <div class="grid grid-cols-5 gap-2 md:gap-3 w-full max-w-3xl aspect-[5/4]" id="game-grid">
+                        <!-- 20 cases générées en JS -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Zone Règles & Aperçu Adversaire -->
+            <div class="lg:w-80 flex flex-col gap-4">
+                <!-- Scores comparatifs -->
+                <div class="bg-white p-4 rounded-2xl shadow-md border border-orange-200 flex justify-between items-center">
+                    <div class="text-center">
+                        <div class="text-xs font-bold text-green-700" id="p1-score-label">Chef 1</div>
+                        <div class="text-2xl font-black text-green-600" id="p1-score-val">0</div>
+                    </div>
+                    <div class="text-xl font-black text-orange-400">VS</div>
+                    <div class="text-center">
+                        <div class="text-xs font-bold text-blue-700" id="p2-score-label">Chef 2</div>
+                        <div class="text-2xl font-black text-blue-600" id="p2-score-val">0</div>
+                    </div>
+                </div>
+
+                <!-- Panneau des règles -->
+                <div class="bg-white text-orange-950 rounded-2xl shadow-xl border-4 border-orange-400 flex flex-col max-h-[60vh] flex-1">
+                    <div class="bg-orange-500 text-white p-3 text-center rounded-t-xl">
+                        <h2 class="text-xl font-black">📖 Recette et Synergies</h2>
+                    </div>
+                    <div class="p-3 overflow-y-auto flex-1 space-y-2 text-sm" id="rules-list">
+                        <!-- Règles injectées -->
+                    </div>
+                    <div class="p-3 bg-green-100 text-green-900 rounded-b-lg border-t border-orange-400 text-xs font-bold text-center">
+                        Diversité des Macronutriments : <br> ≤ 2 types = -10 pts | ≥ 5 types = +15 pts
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ECRAN: FIN DE PARTIE -->
+    <div id="screen-gameover" class="screen flex-col items-center justify-center flex-1 max-w-2xl mx-auto w-full">
+        <div class="bg-white p-8 rounded-3xl border-4 border-green-500 shadow-2xl w-full text-center relative overflow-hidden">
+            <div class="text-6xl mb-2">🏆</div>
+            <h2 class="text-4xl font-black text-green-600 mb-1" id="winner-title">Victoire !</h2>
+            <p class="text-orange-800 font-bold mb-6" id="winner-subtitle">Le grand chef a préparé la meilleure assiette.</p>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <!-- Joueur 1 Résultat -->
+                <div class="bg-green-50 rounded-2xl p-4 border-2 border-green-300 flex flex-col items-center">
+                    <h3 class="text-xl font-black text-green-800 mb-1" id="go-p1-name">Chef 1</h3>
+                    <div class="text-5xl font-black text-green-600 my-2" id="go-p1-score">0</div>
+                    <div class="text-xs text-green-700 font-bold">Base: <span id="go-p1-base">0</span> | Diversité: <span id="go-p1-div">0</span></div>
+                </div>
+
+                <!-- Joueur 2 Résultat -->
+                <div class="bg-blue-50 rounded-2xl p-4 border-2 border-blue-300 flex flex-col items-center">
+                    <h3 class="text-xl font-black text-blue-800 mb-1" id="go-p2-name">Chef 2</h3>
+                    <div class="text-5xl font-black text-blue-600 my-2" id="go-p2-score">0</div>
+                    <div class="text-xs text-blue-700 font-bold">Base: <span id="go-p2-base">0</span> | Diversité: <span id="go-p2-div">0</span></div>
+                </div>
+            </div>
+
+            <button onclick="showScreen('screen-home')" class="w-full bg-gradient-to-r from-orange-500 to-green-600 hover:opacity-95 text-white text-xl font-bold py-4 rounded-xl transition shadow-lg border-b-4 border-green-800">
+                🔄 Rejouer une partie
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const CARDS = [
+            { id: 'agrume', name: 'Agrume', emoji: '🍊', macros: ['Vitamines'], desc: '+3 pts par Viande ou Lentilles adjacentes.',
+              calc: (adj) => adj.filter(c => ['viande', 'lentilles'].includes(c.id)).length * 3 },
+              
+            { id: 'viande', name: 'Viande', emoji: '🥩', macros: ['Protéines'], desc: '+2 pts par Légume, -2 pts par Fromage.',
+              calc: (adj) => (adj.filter(c => c.id === 'legume').length * 2) - (adj.filter(c => c.id === 'fromage').length * 2) },
+              
+            { id: 'lentilles', name: 'Lentilles', emoji: '🫘', macros: ['Protéines', 'Glucides'], desc: '+4 pts par Agrume adjacent, -2 pts par Fromage.',
+              calc: (adj) => (adj.filter(c => c.id === 'agrume').length * 4) - (adj.filter(c => c.id === 'fromage').length * 2) },
+              
+            { id: 'fromage', name: 'Fromage', emoji: '🧀', macros: ['Lipides'], desc: '+3 pts par Féculent, -2 pts par Viande ou Lentilles.',
+              calc: (adj) => (adj.filter(c => c.id === 'feculent').length * 3) - (adj.filter(c => ['viande', 'lentilles'].includes(c.id)).length * 2) },
+              
+            { id: 'legume', name: 'Légumes', emoji: '🥦', macros: ['Fibres', 'Vitamines'], desc: '+2 pts par Protéine ou Féculent.',
+              calc: (adj) => adj.filter(c => ['viande', 'poisson', 'oeuf', 'lentilles', 'feculent'].includes(c.id)).length * 2 },
+              
+            { id: 'feculent', name: 'Féculent', emoji: '🍞', macros: ['Glucides'], desc: '+2 pts par Légume ou Fromage adjacent.',
+              calc: (adj) => adj.filter(c => ['legume', 'fromage'].includes(c.id)).length * 2 },
+              
+            { id: 'poisson', name: 'Poisson', emoji: '🐟', macros: ['Protéines', 'Lipides'], desc: '+3 pts par Légume ou Noix adjacent.',
+              calc: (adj) => adj.filter(c => ['legume', 'noix'].includes(c.id)).length * 3 },
+              
+            { id: 'noix', name: 'Noix & Graines', emoji: '🥜', macros: ['Lipides'], desc: '+3 pts par Agrume ou Féculent adjacent.',
+              calc: (adj) => adj.filter(c => ['agrume', 'feculent'].includes(c.id)).length * 3 },
+              
+            { id: 'oeuf', name: 'Œuf', emoji: '🍳', macros: ['Protéines'], desc: '+2 pts par Féculent ou Légume adjacent.',
+              calc: (adj) => adj.filter(c => ['feculent', 'legume'].includes(c.id)).length * 2 },
+              
+            { id: 'eau', name: 'Eau', emoji: '💧', macros: ['Hydratation'], desc: '+2 pts si placée sur un bord, +1 pt par Légume ou Agrume.',
+              calc: (adj, r, c) => ((r === 0 || r === 3 || c === 0 || c === 4) ? 2 : 0) + (adj.filter(c => ['legume', 'agrume'].includes(c.id)).length * 1) },
+              
+            { id: 'fastfood', name: 'Fast Food', emoji: '🍔', macros: ['Ultra-transformé'], desc: '+4 pts si AUCUN Fast Food adjacent, sinon -4 pts par Fast Food.',
+              calc: (adj) => {
+                  const ffCount = adj.filter(c => c.id === 'fastfood').length;
+                  return ffCount === 0 ? 4 : (ffCount * -4);
+              } }
+        ];
+
+        const ROWS = 4;
+        const COLS = 5;
+
+        let players = [
+            { id: 0, name: 'Chef 1', grid: [], baseScore: 0, diversityScore: 0, color: 'green' },
+            { id: 1, name: 'Chef 2', grid: [], baseScore: 0, diversityScore: 0, color: 'blue' }
+        ];
+
+        let currentPlayerIndex = 0;
+        let turn = 1;
+        let draftOptions = [];
+        let selectedDraftIndex = null;
+
+        function showScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(screenId).classList.add('active');
+        }
+
+        function startGame() {
+            const p1Name = document.getElementById('p1-name-input').value.trim() || 'Chef 1';
+            const p2Name = document.getElementById('p2-name-input').value.trim() || 'Chef 2';
+
+            players[0].name = p1Name;
+            players[0].grid = Array.from({length: ROWS}, () => Array(COLS).fill(null));
+            players[0].baseScore = 0;
+            players[0].diversityScore = 0;
+
+            players[1].name = p2Name;
+            players[1].grid = Array.from({length: ROWS}, () => Array(COLS).fill(null));
+            players[1].baseScore = 0;
+            players[1].diversityScore = 0;
+
+            currentPlayerIndex = 0;
+            turn = 1;
+            selectedDraftIndex = null;
+
+            document.getElementById('p1-score-label').innerText = p1Name;
+            document.getElementById('p2-score-label').innerText = p2Name;
+
+            renderRules();
+            generateDraft();
+            updateUI();
+            showScreen('screen-game');
+        }
+
+        function getRandomCard() {
+            return CARDS[Math.floor(Math.random() * CARDS.length)];
+        }
+
+        function generateDraft() {
+            draftOptions = [getRandomCard(), getRandomCard(), getRandomCard()];
+            selectedDraftIndex = null;
+            renderDraft();
+        }
+
+        function selectDraft(index) {
+            selectedDraftIndex = index;
+            renderDraft();
+            renderGrid();
+        }
+
+        function placeCard(r, c) {
+            if (selectedDraftIndex === null) return;
+            const p = players[currentPlayerIndex];
+            if (p.grid[r][c] !== null) return;
+
+            p.grid[r][c] = draftOptions[selectedDraftIndex];
+            calculatePlayerScore(p);
+
+            if (currentPlayerIndex === 0) {
+                currentPlayerIndex = 1;
+            } else {
+                currentPlayerIndex = 0;
+                turn++;
+            }
+
+            if (turn > 20) {
+                endGame();
+            } else {
+                generateDraft();
+                updateUI();
+            }
+        }
+
+        function calculatePlayerScore(player) {
+            let base = 0;
+            const uniqueMacros = new Set();
+
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    const card = player.grid[r][c];
+                    if (card) {
+                        const adj = [];
+                        if (r > 0 && player.grid[r-1][c]) adj.push(player.grid[r-1][c]);
+                        if (r < ROWS - 1 && player.grid[r+1][c]) adj.push(player.grid[r+1][c]);
+                        if (c > 0 && player.grid[r][c-1]) adj.push(player.grid[r][c-1]);
+                        if (c < COLS - 1 && player.grid[r][c+1]) adj.push(player.grid[r][c+1]);
+
+                        base += card.calc(adj, r, c);
+                        card.macros.forEach(m => uniqueMacros.add(m));
+                    }
+                }
+            }
+
+            uniqueMacros.delete('Ultra-transformé');
+            let div = 0;
+            if (uniqueMacros.size <= 2) div = -10;
+            else if (uniqueMacros.size >= 5) div = 15;
+
+            player.baseScore = base;
+            player.diversityScore = div;
+        }
+
+        function updateUI() {
+            const p = players[currentPlayerIndex];
+            const header = document.getElementById('game-header');
+            const title = document.getElementById('current-player-title');
+            
+            if (p.color === 'green') {
+                header.className = "flex justify-between items-center bg-green-50 p-4 rounded-2xl mb-4 backdrop-blur-sm border-2 border-green-400 shadow-sm transition-colors";
+                title.className = "text-2xl md:text-3xl font-black flex items-center gap-2 text-green-700";
+            } else {
+                header.className = "flex justify-between items-center bg-blue-50 p-4 rounded-2xl mb-4 backdrop-blur-sm border-2 border-blue-400 shadow-sm transition-colors";
+                title.className = "text-2xl md:text-3xl font-black flex items-center gap-2 text-blue-700";
+            }
+
+            title.innerText = `🥗 Tour de ${p.name}`;
+            document.getElementById('round-indicator').innerText = `Tour ${turn} / 20`;
+            
+            document.getElementById('live-score').innerText = p.baseScore + p.diversityScore;
+            document.getElementById('p1-score-val').innerText = players[0].baseScore + players[0].diversityScore;
+            document.getElementById('p2-score-val').innerText = players[1].baseScore + players[1].diversityScore;
+
+            renderGrid();
+        }
+
+        function endGame() {
+            const p1Total = players[0].baseScore + players[0].diversityScore;
+            const p2Total = players[1].baseScore + players[1].diversityScore;
+
+            document.getElementById('go-p1-name').innerText = players[0].name;
+            document.getElementById('go-p1-score').innerText = p1Total;
+            document.getElementById('go-p1-base').innerText = players[0].baseScore;
+            document.getElementById('go-p1-div').innerText = players[0].diversityScore > 0 ? '+' + players[0].diversityScore : players[0].diversityScore;
+
+            document.getElementById('go-p2-name').innerText = players[1].name;
+            document.getElementById('go-p2-score').innerText = p2Total;
+            document.getElementById('go-p2-base').innerText = players[1].baseScore;
+            document.getElementById('go-p2-div').innerText = players[1].diversityScore > 0 ? '+' + players[1].diversityScore : players[1].diversityScore;
+
+            if (p1Total > p2Total) {
+                document.getElementById('winner-title').innerText = `Victoire de ${players[0].name} ! 🏆`;
+            } else if (p2Total > p1Total) {
+                document.getElementById('winner-title').innerText = `Victoire de ${players[1].name} ! 🏆`;
+            } else {
+                document.getElementById('winner-title').innerText = `Égalité Parfaite ! 🤝`;
+            }
+
+            showScreen('screen-gameover');
+        }
+
+        function renderRules() {
+            const rulesEl = document.getElementById('rules-list');
+            rulesEl.innerHTML = '';
+            CARDS.forEach(c => {
+                const macrosHtml = c.macros.map(m => `<span class="macro-tag">${m}</span>`).join(' ');
+                rulesEl.innerHTML += `
+                    <div class="flex gap-2 items-center bg-orange-50 p-2 rounded-lg border border-orange-100">
+                        <div class="text-2xl">${c.emoji}</div>
+                        <div>
+                            <div class="font-bold text-orange-900 leading-tight flex items-center gap-2">
+                                ${c.name} ${macrosHtml}
+                            </div>
+                            <div class="text-[11px] text-orange-800 leading-tight mt-1">${c.desc}</div>
+                        </div>
+                    </div>`;
+            });
+        }
+
+        function renderDraft() {
+            const draftEl = document.getElementById('draft-area');
+            draftEl.innerHTML = '';
+            draftOptions.forEach((c, index) => {
+                const isSelected = selectedDraftIndex === index;
+                const macrosHtml = c.macros.map(m => `<span class="macro-tag" style="font-size:7px; padding:1px 3px;">${m}</span>`).join('');
+                
+                draftEl.innerHTML += `
+                    <div class="card w-24 h-32 rounded-xl flex flex-col items-center justify-center p-2 relative ${isSelected ? 'card-selected' : ''}" 
+                         onclick="selectDraft(${index})">
+                        <div class="text-4xl emoji-shadow mb-1">${c.emoji}</div>
+                        <div class="text-xs font-black text-center leading-tight mb-1">${c.name}</div>
+                        <div class="flex gap-1 flex-wrap justify-center">${macrosHtml}</div>
+                        ${isSelected ? '<div class="absolute -top-2 -right-2 bg-green-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold shadow-md">✓</div>' : ''}
+                    </div>`;
+            });
+        }
+
+        function renderGrid() {
+            const gridEl = document.getElementById('game-grid');
+            gridEl.innerHTML = '';
+            const p = players[currentPlayerIndex];
+
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    const card = p.grid[r][c];
+                    let classes = 'w-full h-full rounded-xl flex flex-col items-center justify-center relative ';
+                    let content = '';
+                    
+                    if (card) {
+                        classes += 'card locked';
+                        content = `
+                            <div class="text-4xl md:text-5xl emoji-shadow">${card.emoji}</div>
+                            <div class="absolute top-1 text-[8px] font-bold text-orange-700 opacity-50">${card.name.substring(0,6)}</div>
+                        `;
+                    } else {
+                        classes += 'grid-cell';
+                        if (selectedDraftIndex !== null) classes += ' droppable';
+                    }
+                    
+                    gridEl.innerHTML += `
+                        <div class="${classes}" onclick="placeCard(${r}, ${c})">
+                            ${content}
+                        </div>`;
+                }
+            }
+        }
+    </script>
+</body>
+</html>

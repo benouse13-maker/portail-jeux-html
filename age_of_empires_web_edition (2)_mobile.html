@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <!-- Meta viewport optimisé pour éviter le zoom intempestif sur mobile -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Empire Web : L'Âge des Rois (Mobile)</title>
+    <style>
+        :root {
+            --bg-color: #1a1512;
+            --panel-bg: #2c221a;
+            --border-wood: #5c4033;
+            --border-gold: #d4af37;
+            --text-main: #f4ebd8;
+            --text-muted: #a89f91;
+            --btn-bg: #4a3b2c;
+            --btn-hover: #6b543f;
+            --danger: #cc3333;
+            --success: #33cc55;
+            --stone: #888c8d;
+            --magic: #9b59b6;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Georgia', serif; }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            background-image: radial-gradient(circle at center, #2c221a 0%, #1a1512 100%);
+            overscroll-behavior-y: none; /* Évite l'effet de "rebond" sur mobile */
+        }
+
+        /* Top Bar (Sticky pour toujours voir les ressources) */
+        header {
+            position: sticky;
+            top: 0;
+            background: linear-gradient(to bottom, #3a2e24, #1f1813);
+            border-bottom: 3px solid var(--border-gold);
+            padding: 8px 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.9);
+            z-index: 100;
+        }
+
+        .resource-group { 
+            display: flex; 
+            gap: 5px; 
+            justify-content: center; 
+            flex-wrap: wrap; 
+        }
+
+        .resource {
+            display: flex; align-items: center; font-size: 0.95rem; font-weight: bold;
+            background: rgba(0,0,0,0.5); padding: 4px 8px; border-radius: 4px;
+            border: 1px solid var(--border-wood); text-shadow: 1px 1px 2px black;
+        }
+
+        .resource span.icon { margin-right: 4px; font-size: 1.1rem; }
+
+        /* Main Content */
+        .container { 
+            flex: 1; 
+            padding: 15px; 
+            display: grid;
+            grid-template-columns: 1fr; /* 1 colonne sur mobile */
+            gap: 15px;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        /* Panels */
+        .panel {
+            background: var(--panel-bg); border: 4px solid var(--border-wood);
+            border-image: linear-gradient(to bottom right, var(--border-wood), #38251b) 1;
+            border-radius: 8px; padding: 12px; box-shadow: inset 0 0 20px rgba(0,0,0,0.8), 0 5px 15px rgba(0,0,0,0.5);
+            position: relative;
+        }
+
+        .panel::before {
+            content: ''; position: absolute; top: -4px; left: -4px; right: -4px; bottom: -4px;
+            border: 1px solid var(--border-gold); pointer-events: none; opacity: 0.5;
+        }
+
+        .panel h2 {
+            text-align: center; font-size: 1.1rem; margin-bottom: 12px; color: var(--border-gold);
+            text-shadow: 1px 1px 2px black; border-bottom: 1px solid var(--border-wood);
+            padding-bottom: 5px; text-transform: uppercase; letter-spacing: 1px;
+        }
+
+        /* Buttons (Plus grands pour le tactile) */
+        button {
+            background: linear-gradient(to bottom, var(--btn-bg), #2c221a); color: var(--text-main);
+            border: 2px solid var(--border-wood); padding: 12px 10px; cursor: pointer;
+            font-weight: bold; font-size: 0.9rem; border-radius: 4px; transition: all 0.2s;
+            text-shadow: 1px 1px 2px black; box-shadow: 0 4px 6px rgba(0,0,0,0.4);
+            width: 100%; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;
+        }
+
+        button:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 2px rgba(0,0,0,0.4); background: var(--btn-hover); }
+        button:disabled { opacity: 0.5; cursor: not-allowed; filter: grayscale(100%); }
+
+        .cost { font-size: 0.8rem; color: var(--text-muted); text-align: right; max-width: 55%; }
+
+        /* Work Assignments */
+        .job-row {
+            display: flex; justify-content: space-between; align-items: center;
+            background: rgba(0,0,0,0.3); padding: 8px; margin-bottom: 6px;
+            border: 1px solid #38251b; border-radius: 4px; font-size: 0.95rem;
+        }
+        .job-controls { display: flex; align-items: center; gap: 8px; }
+        /* Boutons + et - adaptés pour les gros doigts */
+        .job-controls button { width: 36px; height: 36px; padding: 0; margin: 0; justify-content: center; font-size: 1.2rem; }
+        .idle-villagers { text-align: center; margin-bottom: 10px; font-weight: bold; color: var(--border-gold); }
+
+        /* Threat Panel (Mis en avant) */
+        .threat-panel { text-align: center; background: linear-gradient(to bottom, #3b2222, #1f1813); border-color: #6a3030; }
+        .threat-panel h2 { color: #e74c3c; border-color: #e74c3c; }
+        #threat-timer { font-size: 2.2rem; font-weight: bold; color: var(--danger); text-shadow: 0 0 10px rgba(204, 51, 51, 0.8); margin: 5px 0; }
+        #defense-power { color: var(--border-gold); font-size: 1.2rem; font-weight: bold; }
+        #wall-status { color: #bdc3c7; font-size: 0.9rem; margin-bottom: 10px; }
+        .timer-display { font-size: 1rem; font-weight: bold; color: #a89f91; text-align: center; margin-bottom: 10px; background: rgba(0,0,0,0.5); padding: 5px; border-radius: 4px; }
+
+        /* Event Log */
+        .log-container { min-height: 180px; max-height: 250px; display: flex; flex-direction: column; }
+        #event-log {
+            flex: 1; background: rgba(0,0,0,0.6); border: 2px inset var(--border-wood);
+            padding: 10px; overflow-y: auto; font-size: 0.85rem; line-height: 1.4;
+            display: flex; flex-direction: column; gap: 5px;
+        }
+        .log-entry { padding-bottom: 5px; border-bottom: 1px dashed rgba(255,255,255,0.1); animation: fadeIn 0.3s ease-in; }
+        .log-entry.success { color: var(--success); }
+        .log-entry.danger { color: #ff6666; font-weight: bold; }
+        .log-entry.info { color: var(--text-muted); }
+        .log-entry.event { color: var(--magic); font-weight: bold; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
+
+        /* Custom Modals */
+        #modal-overlay, #start-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.9);
+            display: none; justify-content: center; align-items: center; z-index: 1000; padding: 15px;
+        }
+        #start-overlay { background: rgba(0,0,0,0.95); z-index: 2000; }
+        .modal-content {
+            background: var(--panel-bg); border: 4px solid var(--border-gold); padding: 20px;
+            border-radius: 8px; text-align: center; width: 100%; max-width: 450px; max-height: 90vh; overflow-y: auto; box-shadow: 0 0 30px rgba(212, 175, 55, 0.3);
+        }
+        .modal-content h1 { color: var(--border-gold); margin-bottom: 15px; font-size: 1.6rem; }
+        .modal-content p { margin-bottom: 15px; font-size: 1rem; line-height: 1.5; }
+        
+        .wonder-btn { border-color: var(--border-gold); background: linear-gradient(to bottom, #5c4a21, #382d14); }
+        
+        .cloud-btns { display: flex; gap: 10px; }
+        .cloud-btns button { font-size: 0.8rem; text-align: center; justify-content: center; }
+
+        .highscore-table { width: 100%; border-collapse: collapse; margin-top: 15px; color: var(--text-main); font-size: 0.8rem; }
+        .highscore-table th, .highscore-table td { border: 1px solid var(--border-wood); padding: 6px; text-align: center; }
+        .highscore-table th { background: rgba(0,0,0,0.5); color: var(--border-gold); }
+        .modal-input { padding: 10px; width: 100%; margin: 15px 0; background: rgba(0,0,0,0.5); color: white; border: 1px solid var(--border-wood); border-radius: 4px; font-size: 1rem; text-align: center;}
+
+        /* Difficulty Buttons */
+        .diff-btn { justify-content: center; padding: 15px; font-size: 1rem; margin-bottom: 10px; flex-direction: column; }
+        .diff-easy { border-color: #27ae60; }
+        .diff-normal { border-color: #f39c12; }
+        .diff-hard { border-color: #c0392b; }
+
+        .active-expedition { color: var(--border-gold); font-weight: bold; text-align: center; margin-top: 10px; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 4px; border: 1px solid var(--border-gold);}
+
+        /* Media Query pour Tablette/Desktop (Rétablit la grille si l'écran est grand) */
+        @media (min-width: 768px) {
+            header { flex-direction: row; justify-content: space-between; }
+            .container { grid-template-columns: repeat(2, 1fr); padding: 20px; }
+            .threat-panel { grid-column: span 2; } /* Menace prend toute la largeur en haut */
+        }
+        @media (min-width: 1024px) {
+            .container { grid-template-columns: repeat(3, 1fr); }
+            .threat-panel { grid-column: span 1; } 
+        }
+
+    </style>
+</head>
+<body>
+
+    <!-- Écran de sélection de difficulté -->
+    <div id="start-overlay" style="display: flex;">
+        <div class="modal-content">
+            <h1>L'Âge des Rois</h1>
+            <p>Choisissez votre défi pour commencer à bâtir votre empire.</p>
+            <button class="diff-btn diff-easy" onclick="startGame('easy')">🟢 Facile<br><span style="font-size:0.8em; font-weight:normal; color:#bdc3c7;">Ressources x1.5, Ennemis faibles</span></button>
+            <button class="diff-btn diff-normal" onclick="startGame('normal')">🟡 Normal<br><span style="font-size:0.8em; font-weight:normal; color:#bdc3c7;">Expérience classique</span></button>
+            <button class="diff-btn diff-hard" onclick="startGame('hard')">🔴 Difficile<br><span style="font-size:0.8em; font-weight:normal; color:#bdc3c7;">Ressources x0.7, Ennemis féroces</span></button>
+            <hr style="border-color: var(--border-wood); margin: 20px 0;">
+            <button onclick="loadGameFromFile()" style="justify-content: center; background: transparent;">📂 Charger une sauvegarde</button>
+        </div>
+    </div>
+
+    <header>
+        <div class="resource-group">
+            <div class="resource" title="Nourriture"><span class="icon">🥩</span> <span id="res-food">200</span></div>
+            <div class="resource" title="Bois"><span class="icon">🪵</span> <span id="res-wood">200</span></div>
+            <div class="resource" title="Pierre"><span class="icon">🪨</span> <span id="res-stone">0</span></div>
+            <div class="resource" title="Or"><span class="icon">🪙</span> <span id="res-gold">0</span></div>
+        </div>
+        <div class="resource-group">
+            <div class="resource" title="Difficulté"><span class="icon">⚙️</span> <span id="res-diff">-</span></div>
+            <div class="resource" title="Population"><span class="icon">👥</span> <span id="res-pop">3/5</span></div>
+            <div class="resource" title="Score Actuel"><span class="icon">🏆</span> <span id="res-score">0</span></div>
+        </div>
+    </header>
+
+    <div class="container">
+        <!-- 1. Threat Panel EN HAUT sur mobile -->
+        <div class="panel threat-panel">
+            <div class="timer-display" style="float: right; margin: 0; background: none;">⏱️ <span id="time-display">00:00</span></div>
+            <h2>Guerre Imminente</h2>
+            <p style="color: var(--text-muted); font-size: 0.85rem;">Prochaine attaque dans :</p>
+            <div id="threat-timer">60s</div>
+            <p style="font-weight:bold; font-size:0.9rem;">Vague : <span id="wave-count">1</span></p>
+            <hr style="border-color: #6a3030; margin: 10px 0;">
+            <div id="wall-status">Défense passive: 0</div>
+            <div style="font-size: 1.1rem;">Défense Totale : <span id="defense-power">0</span> 🛡️</div>
+        </div>
+
+        <!-- 2. Town Center -->
+        <div class="panel">
+            <h2>Forum</h2>
+            <div class="idle-villagers">Villageois inactifs : <span id="idle-count">3</span></div>
+            <button id="btn-create-villager" onclick="createVillager()">
+                <span>👤 Créer Villageois</span><span class="cost">50 🥩</span>
+            </button>
+            <div class="cloud-btns">
+                <button onclick="saveGameToFile()">💾 Sauvegarder</button>
+                <button onclick="loadGameFromFile()">📂 Charger</button>
+            </div>
+            <button onclick="showHighScores()" style="margin-top: 5px; background: linear-gradient(to bottom, #5c4a21, #382d14); border-color: var(--border-gold); justify-content: center;">🏆 Meilleurs Scores</button>
+        </div>
+
+        <!-- 3. Economy -->
+        <div class="panel">
+            <h2>Économie</h2>
+            <div class="job-row">
+                <div>🥩 Fermiers (<span id="job-food-count">0</span>)</div>
+                <div class="job-controls"><button onclick="assignWorker('food', -1)">-</button><button onclick="assignWorker('food', 1)">+</button></div>
+            </div>
+            <div class="job-row">
+                <div>🪵 Bûcherons (<span id="job-wood-count">0</span>)</div>
+                <div class="job-controls"><button onclick="assignWorker('wood', -1)">-</button><button onclick="assignWorker('wood', 1)">+</button></div>
+            </div>
+            <div class="job-row">
+                <div>🪨 Tailleurs (<span id="job-stone-count">0</span>)</div>
+                <div class="job-controls"><button onclick="assignWorker('stone', -1)">-</button><button onclick="assignWorker('stone', 1)">+</button></div>
+            </div>
+            <div class="job-row">
+                <div>🪙 Mineurs (<span id="job-gold-count">0</span>)</div>
+                <div class="job-controls"><button onclick="assignWorker('gold', -1)">-</button><button onclick="assignWorker('gold', 1)">+</button></div>
+            </div>
+        </div>
+
+        <!-- 4. Construction -->
+        <div class="panel">
+            <h2>Construction</h2>
+            <button id="btn-build-house" onclick="build('house')">
+                <span>🛖 Maison (+5 Pop)</span><span class="cost">40 🪵</span>
+            </button>
+            <button id="btn-build-barracks" onclick="build('barracks')">
+                <span>⚔️ Caserne</span><span class="cost">150🪵 50🪨</span>
+            </button>
+            <button id="btn-build-wall-wood" onclick="buildWall('wood')">
+                <span>🚧 Palissade (+15 Déf)</span><span class="cost">200 🪵</span>
+            </button>
+            <button id="btn-build-wall-stone" onclick="buildWall('stone')">
+                <span>🏰 Mur Pierre (+40 Déf)</span><span class="cost">300 🪨</span>
+            </button>
+            <button id="btn-build-wonder" class="wonder-btn" onclick="build('wonder')">
+                <span>🏛️ Bâtir la Merveille</span><span class="cost">2000 Tout</span>
+            </button>
+        </div>
+
+        <!-- 5. Military -->
+        <div class="panel">
+            <h2>Caserne Militaire</h2>
+            <p id="barracks-status" style="text-align: center; margin-bottom: 10px; color: var(--danger);">Caserne requise.</p>
+            <div id="military-controls" style="display: none;">
+                <button id="btn-train-spearman" onclick="trainSoldier('spearman')">
+                    <span>🗡️ Lancier (F:<span id="pow-spearman">1</span>)</span><span class="cost">30🥩 20🪵</span>
+                </button>
+                <button id="btn-train-archer" onclick="trainSoldier('archer')">
+                    <span>🏹 Archer (F:<span id="pow-archer">2</span>)</span><span class="cost">20🪵 30🪙</span>
+                </button>
+                <button id="btn-train-knight" onclick="trainSoldier('knight')">
+                    <span>🐎 Chevalier (F:<span id="pow-knight">5</span>)</span><span class="cost">50🥩 40🪙 20🪨</span>
+                </button>
+                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 5px; text-align: center;">
+                    Garnison: <span id="count-spearman">0</span> Lanc. | <span id="count-archer">0</span> Arch. | <span id="count-knight">0</span> Chev.
+                </div>
+            </div>
+        </div>
+
+        <!-- 6. Expeditions -->
+        <div class="panel">
+            <h2>Expéditions (Raids)</h2>
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 10px; text-align: center;">Troupes indisponibles pour défendre pendant le raid !</p>
+            <div id="expedition-controls">
+                <button id="btn-raid-small" onclick="launchRaid('small')">
+                    <span>⛺ Gobelins (15s)</span><span class="cost">3 Lanc.</span>
+                </button>
+                <button id="btn-raid-med" onclick="launchRaid('medium')">
+                    <span>🏘️ Village (30s)</span><span class="cost">5 Lanc, 3 Arch</span>
+                </button>
+                <button id="btn-raid-large" onclick="launchRaid('large')">
+                    <span>🏰 Forteresse (45s)</span><span class="cost">5 Arch, 3 Chev</span>
+                </button>
+            </div>
+            <div id="expedition-active" class="active-expedition" style="display: none;">
+                Raid en cours... Retour dans <span id="expedition-timer">0</span>s
+            </div>
+        </div>
+
+        <!-- 7. Market & Tech -->
+        <div class="panel">
+            <h2>Marché & Forge</h2>
+            <div style="border-bottom: 1px solid var(--border-wood); margin-bottom: 10px; padding-bottom: 10px;">
+                <button onclick="trade('woodToGold')"><span>Vendre 200 🪵</span><span class="cost">+50 🪙</span></button>
+                <button onclick="trade('foodToGold')"><span>Vendre 200 🥩</span><span class="cost">+50 🪙</span></button>
+                <button onclick="trade('goldToStone')"><span>Acheter 100 🪨</span><span class="cost">-100 🪙</span></button>
+            </div>
+            <div>
+                <button id="btn-tech-plow" onclick="buyTech('plow')"><span>🌾 Charrue (+50%🥩)</span><span class="cost">300🪵 100🪙</span></button>
+                <button id="btn-tech-axe" onclick="buyTech('axe')"><span>🪓 Haches Fer (+50%🪵)</span><span class="cost">300🥩 100🪙</span></button>
+                <button id="btn-tech-armor" onclick="buyTech('armor')"><span>🛡️ Armures (Armée +1)</span><span class="cost">200🪨 200🪙</span></button>
+            </div>
+        </div>
+
+        <!-- 8. Log Panel (En bas sur mobile) -->
+        <div class="panel log-container">
+            <h2>Journal</h2>
+            <div id="event-log">
+                <div class="log-entry info">En attente de la sélection de difficulté...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div id="modal-overlay">
+        <div class="modal-content">
+            <h1 id="modal-title">Titre</h1>
+            <p id="modal-text">Texte principal</p>
+            <div id="modal-dynamic-content"></div>
+            <button id="modal-btn-close" onclick="closeModal()" style="width: auto; padding: 12px 30px; margin: 15px auto 0; justify-content: center;">Continuer</button>
+        </div>
+    </div>
+
+    <script>
+        // --- Game State ---
+        let state = {
+            resources: { food: 200, wood: 200, stone: 0, gold: 0 },
+            population: { current: 3, max: 5 },
+            villagers: { idle: 3, food: 0, wood: 0, stone: 0, gold: 0 },
+            buildings: { houses: 0, barracks: 0, wonder: 0, wallLevel: 0 },
+            military: { spearman: 0, archer: 0, knight: 0 },
+            techs: { plow: false, axe: false, armor: false },
+            expedition: { active: false, timer: 0, type: null, troops: { spearman: 0, archer: 0, knight: 0 } },
+            combat: { timer: 60, wave: 1 },
+            timeElapsed: 0,
+            score: 0,
+            gameOver: false,
+            difficultyName: 'Normal',
+            mults: { res: 1, enemy: 1, timeBase: 60, score: 1 }
+        };
+
+        const costs = {
+            villager: { food: 50 },
+            house: { wood: 40 },
+            barracks: { wood: 150, stone: 50 },
+            wallWood: { wood: 200 },
+            wallStone: { stone: 300 },
+            wonder: { food: 2000, wood: 2000, stone: 2000, gold: 2000 },
+            spearman: { food: 30, wood: 20 },
+            archer: { wood: 20, gold: 30 },
+            knight: { food: 50, gold: 40, stone: 20 },
+            techPlow: { wood: 300, gold: 100 },
+            techAxe: { food: 300, gold: 100 },
+            techArmor: { stone: 200, gold: 200 }
+        };
+
+        const raids = {
+            small: { req: { spearman: 3, archer: 0, knight: 0 }, time: 15, reward: { stone: 150, gold: 100 }, name: "Camp Gobelin" },
+            medium: { req: { spearman: 5, archer: 3, knight: 0 }, time: 30, reward: { food: 400, gold: 300 }, name: "Village Riche" },
+            large: { req: { spearman: 0, archer: 5, knight: 3 }, time: 45, reward: { stone: 600, gold: 600 }, name: "Forteresse" }
+        };
+
+        let gameLoopInterval = null;
+
+        // --- Initialisation ---
+        window.startGame = function(level) {
+            getEl('start-overlay').style.display = 'none';
+            if (level === 'easy') {
+                state.difficultyName = 'Facile'; state.mults = { res: 1.5, enemy: 0.5, timeBase: 90, score: 0.5 };
+            } else if (level === 'hard') {
+                state.difficultyName = 'Difficile'; state.mults = { res: 0.7, enemy: 1.5, timeBase: 45, score: 2 };
+            } else {
+                state.difficultyName = 'Normal'; state.mults = { res: 1, enemy: 1, timeBase: 60, score: 1 };
+            }
+            state.combat.timer = state.mults.timeBase;
+            window.logEvent(`Bienvenue. Mode : ${state.difficultyName}`, 'info');
+            window.updateUI();
+            gameLoopInterval = setInterval(gameTick, 1000);
+        };
+
+        // --- Sauvegarde & Chargement ---
+        window.saveGameToFile = function() {
+            const dataStr = JSON.stringify(state);
+            const blob = new Blob([dataStr], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = "sauvegarde_empire_mobile.json";
+            document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+            window.logEvent("Partie sauvegardée.", "success");
+        };
+
+        window.loadGameFromFile = function() {
+            const input = document.createElement('input');
+            input.type = 'file'; input.accept = '.json';
+            input.onchange = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        let loaded = JSON.parse(event.target.result);
+                        if(!loaded.techs) loaded.techs = { plow: false, axe: false, armor: false };
+                        if(loaded.buildings.wallLevel === undefined) loaded.buildings.wallLevel = 0;
+                        if(!loaded.expedition) loaded.expedition = { active: false, timer: 0 };
+                        
+                        state = loaded;
+                        getEl('start-overlay').style.display = 'none'; 
+                        window.updateUI();
+                        window.logEvent(`Partie restaurée (${state.difficultyName}).`, "success");
+                        if(!gameLoopInterval && !state.gameOver) gameLoopInterval = setInterval(gameTick, 1000);
+                    } catch (err) { alert("Fichier invalide."); }
+                };
+                reader.readAsText(file);
+            };
+            input.click();
+        };
+
+        // --- Meilleurs Scores ---
+        const HIGH_SCORES_KEY = 'empire_high_scores_v2';
+        function getHighScores() { return JSON.parse(localStorage.getItem(HIGH_SCORES_KEY) || '[]'); }
+        window.saveHighScore = function() {
+            const nameInput = document.getElementById('player-name-input');
+            const name = (nameInput && nameInput.value.trim() !== '') ? nameInput.value.trim() : 'Anonyme';
+            const scores = getHighScores();
+            scores.push({ name: name, score: state.score, time: window.formatTime(state.timeElapsed), diff: state.difficultyName });
+            scores.sort((a, b) => b.score - a.score);
+            localStorage.setItem(HIGH_SCORES_KEY, JSON.stringify(scores.slice(0, 10)));
+            window.showHighScores();
+        };
+        window.showHighScores = function() {
+            const scores = getHighScores();
+            let tableHtml = '<div style="overflow-x:auto;"><table class="highscore-table"><tr><th>Nom</th><th>Mode</th><th>Temps</th><th>Score</th></tr>';
+            if (scores.length === 0) tableHtml += '<tr><td colspan="4">Aucun score enregistré.</td></tr>';
+            else scores.forEach((s) => tableHtml += `<tr><td>${s.name}</td><td>${s.diff}</td><td>${s.time}</td><td>${s.score}</td></tr>`);
+            tableHtml += '</table></div>';
+            window.showModal("🏆 Meilleurs Scores", "", tableHtml, false);
+        };
+
+        // --- Utilitaires ---
+        function getEl(id) { return document.getElementById(id); }
+        window.logEvent = function(message, type = 'info') {
+            const logPanel = getEl('event-log');
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.innerHTML = `[${window.formatTime(state.timeElapsed)}] ${message}`;
+            logPanel.appendChild(entry);
+            logPanel.scrollTop = logPanel.scrollHeight;
+        }
+        window.showModal = function(title, text, dynamicHtml = "", hideCloseBtn = false) {
+            getEl('modal-title').innerText = title; getEl('modal-text').innerHTML = text;
+            getEl('modal-dynamic-content').innerHTML = dynamicHtml;
+            getEl('modal-btn-close').style.display = hideCloseBtn ? 'none' : 'flex';
+            getEl('modal-overlay').style.display = 'flex';
+        }
+        window.closeModal = function() { getEl('modal-overlay').style.display = 'none'; }
+        window.formatTime = function(seconds) { return `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${(seconds % 60).toString().padStart(2, '0')}`; }
+
+        // --- Calculs ---
+        function calculateTotalPop() {
+            let total = state.villagers.idle + state.villagers.food + state.villagers.wood + state.villagers.stone + state.villagers.gold;
+            total += state.military.spearman + state.military.archer + state.military.knight;
+            if (state.expedition.active) {
+                total += state.expedition.troops.spearman + state.expedition.troops.archer + state.expedition.troops.knight;
+            }
+            state.population.current = total;
+            return total;
+        }
+
+        function getUnitPower(unit) {
+            let bonus = state.techs.armor ? 1 : 0;
+            if(unit === 'spearman') return 1 + bonus;
+            if(unit === 'archer') return 2 + bonus;
+            if(unit === 'knight') return 5 + (bonus > 0 ? 2 : 0);
+            return 0;
+        }
+
+        function getWallPower() {
+            if (state.buildings.wallLevel === 1) return 15;
+            if (state.buildings.wallLevel === 2) return 40;
+            return 0;
+        }
+
+        function getDefensePower() {
+            const troopPow = (state.military.spearman * getUnitPower('spearman')) + 
+                             (state.military.archer * getUnitPower('archer')) + 
+                             (state.military.knight * getUnitPower('knight'));
+            return troopPow + getWallPower();
+        }
+
+        function canAfford(costObj) {
+            for (let res in costObj) { if (state.resources[res] < costObj[res]) return false; }
+            return true;
+        }
+        function payCost(costObj) { for (let res in costObj) { state.resources[res] -= costObj[res]; } }
+
+        // --- Actions de base ---
+        window.createVillager = function() {
+            if (calculateTotalPop() >= state.population.max) return;
+            if (canAfford(costs.villager)) { payCost(costs.villager); state.villagers.idle++; window.updateUI(); }
+        }
+        window.assignWorker = function(job, amount) {
+            // Vibation haptique sur mobile
+            if (navigator.vibrate) navigator.vibrate(10); 
+            if (amount > 0 && state.villagers.idle > 0) { state.villagers.idle--; state.villagers[job]++; } 
+            else if (amount < 0 && state.villagers[job] > 0) { state.villagers[job]--; state.villagers.idle++; }
+            window.updateUI();
+        }
+
+        // --- Bâtiments & Murs ---
+        window.build = function(type) {
+            if (canAfford(costs[type])) {
+                payCost(costs[type]);
+                if (type === 'house') { state.buildings.houses++; state.population.max += 5; window.logEvent(`Maison construite. Pop max: ${state.population.max}`, "success"); } 
+                else if (type === 'barracks') { state.buildings.barracks++; window.logEvent("Caserne construite.", "success"); }
+                else if (type === 'wonder') {
+                    state.buildings.wonder++; state.gameOver = true; clearInterval(gameLoopInterval);
+                    const speedBonus = Math.max(0, 5000 - state.timeElapsed * 2);
+                    state.score = Math.floor((1000 + speedBonus) * state.mults.score);
+                    window.logEvent(`MERVEILLE ACHEVÉE ! Score: ${state.score}`, "success");
+                    const inputHtml = `<p>Entrez votre nom :</p><input type="text" id="player-name-input" class="modal-input" placeholder="Votre nom" maxlength="15"><br><button onclick="saveHighScore()" class="wonder-btn" style="margin: 0 auto; justify-content:center;">Enregistrer</button>`;
+                    window.showModal("🏆 Victoire !", `Merveille érigée en ${window.formatTime(state.timeElapsed)}.<br><b>Score : ${state.score}</b>`, inputHtml, true);
+                }
+                window.updateUI();
+            }
+        }
+
+        window.buildWall = function(type) {
+            if (type === 'wood' && state.buildings.wallLevel < 1 && canAfford(costs.wallWood)) {
+                payCost(costs.wallWood); state.buildings.wallLevel = 1;
+                window.logEvent("Palissade construite (+15 Défense).", "success");
+            } else if (type === 'stone' && state.buildings.wallLevel < 2 && canAfford(costs.wallStone)) {
+                payCost(costs.wallStone); state.buildings.wallLevel = 2;
+                window.logEvent("Mur de pierre érigé (+40 Défense).", "success");
+            }
+            window.updateUI();
+        }
+
+        window.trainSoldier = function(type) {
+            if (calculateTotalPop() >= state.population.max) return;
+            if (canAfford(costs[type])) { payCost(costs[type]); state.military[type]++; window.updateUI(); }
+        }
+
+        // --- Nouvelles Mécaniques ---
+        window.buyTech = function(techId) {
+            const cost = techId === 'plow' ? costs.techPlow : techId === 'axe' ? costs.techAxe : costs.techArmor;
+            if (!state.techs[techId] && canAfford(cost)) {
+                payCost(cost); state.techs[techId] = true;
+                window.logEvent(`Technologie débloquée !`, "magic");
+                window.updateUI();
+            }
+        }
+
+        window.trade = function(tradeType) {
+            if (tradeType === 'woodToGold' && state.resources.wood >= 200) { state.resources.wood -= 200; state.resources.gold += 50; }
+            if (tradeType === 'foodToGold' && state.resources.food >= 200) { state.resources.food -= 200; state.resources.gold += 50; }
+            if (tradeType === 'goldToStone' && state.resources.gold >= 100) { state.resources.gold -= 100; state.resources.stone += 100; }
+            window.updateUI();
+        }
+
+        window.launchRaid = function(raidId) {
+            if (state.expedition.active) return;
+            const r = raids[raidId];
+            if (state.military.spearman >= r.req.spearman && state.military.archer >= r.req.archer && state.military.knight >= r.req.knight) {
+                state.military.spearman -= r.req.spearman;
+                state.military.archer -= r.req.archer;
+                state.military.knight -= r.req.knight;
+                state.expedition = { active: true, timer: r.time, type: raidId, troops: { ...r.req } };
+                window.logEvent(`⚔️ Expédition lancée vers ${r.name} !`, "info");
+                window.updateUI();
+            }
+        }
+
+        // --- Combat System ---
+        function handleAttack() {
+            if (navigator.vibrate) navigator.vibrate([200, 100, 200]); // Grosse vibration
+            const baseEnemyPower = Math.floor(state.combat.wave * 2.5 + Math.pow(state.combat.wave, 1.2)); 
+            const enemyPower = Math.max(1, Math.floor(baseEnemyPower * state.mults.enemy));
+            const playerPower = getDefensePower();
+            
+            window.logEvent(`⚔️ Attaque ennemie (Puissance: ${enemyPower})`, "danger");
+
+            if (playerPower >= enemyPower) {
+                let lost = 0;
+                if ((enemyPower / playerPower) > 0.6 && Math.random() > 0.4) {
+                    if (state.military.spearman > 0) { state.military.spearman--; lost++; }
+                    else if (state.military.archer > 0) { state.military.archer--; lost++; }
+                }
+                window.logEvent(`Défense réussie ! Pertes : ${lost} soldat(s).`, "success");
+            } else {
+                state.military.spearman = 0; state.military.archer = 0; state.military.knight = 0;
+                if (state.buildings.wallLevel > 0) {
+                    window.logEvent(`🧱 Défenses détruites !`, "danger");
+                    state.buildings.wallLevel = 0;
+                }
+                
+                state.resources.food = Math.floor(state.resources.food * 0.75);
+                state.resources.wood = Math.floor(state.resources.wood * 0.75);
+                state.resources.stone = Math.floor(state.resources.stone * 0.75);
+                state.resources.gold = Math.floor(state.resources.gold * 0.75);
+
+                let killed = 0;
+                const toKill = Math.min(Math.floor(Math.random() * 3) + 1, calculateTotalPop());
+                const jobs = ['idle', 'food', 'wood', 'stone', 'gold'];
+                while (killed < toKill) {
+                    let totalVils = state.villagers.idle + state.villagers.food + state.villagers.wood + state.villagers.stone + state.villagers.gold;
+                    if (totalVils <= 0) break;
+                    let rJob = jobs[Math.floor(Math.random() * jobs.length)];
+                    if (state.villagers[rJob] > 0) { state.villagers[rJob]--; killed++; }
+                }
+                window.logEvent(`🔥 Défaite. -25% ressources, ${killed} morts.`, "danger");
+                
+                // Remonter l'écran en haut sur mobile pour voir les dégâts
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+            state.combat.wave++;
+            state.combat.timer = state.mults.timeBase + (state.combat.wave * 5); 
+        }
+
+        // --- Événements Aléatoires ---
+        function triggerRandomEvent() {
+            const rand = Math.random();
+            if (rand < 0.3) {
+                state.resources.gold += 50; window.logEvent("🎲 Un marchand vous offre 50 Or !", "event");
+            } else if (rand < 0.6) {
+                if(calculateTotalPop() < state.population.max) {
+                    state.villagers.idle++; window.logEvent("🎲 Un réfugié rejoint le village !", "event");
+                } else {
+                    state.resources.food += 100; window.logEvent("🎲 Bonne récolte ! +100 Nourriture.", "event");
+                }
+            } else {
+                state.combat.timer = Math.max(5, state.combat.timer - 15);
+                window.logEvent("🎲 Les barbares accélèrent ! (-15s)", "danger");
+                if (navigator.vibrate) navigator.vibrate(50);
+            }
+        }
+
+        // --- Mise à jour Interface ---
+        window.updateUI = function() {
+            calculateTotalPop();
+            getEl('res-food').innerText = Math.floor(state.resources.food);
+            getEl('res-wood').innerText = Math.floor(state.resources.wood);
+            getEl('res-stone').innerText = Math.floor(state.resources.stone);
+            getEl('res-gold').innerText = Math.floor(state.resources.gold);
+            getEl('res-pop').innerText = `${state.population.current}/${state.population.max}`;
+            getEl('res-diff').innerText = state.difficultyName.substring(0,4); // Abrégé pour la top bar
+            getEl('res-score').innerText = state.score;
+            
+            getEl('idle-count').innerText = state.villagers.idle;
+            getEl('job-food-count').innerText = state.villagers.food;
+            getEl('job-wood-count').innerText = state.villagers.wood;
+            getEl('job-stone-count').innerText = state.villagers.stone;
+            getEl('job-gold-count').innerText = state.villagers.gold;
+
+            getEl('pow-spearman').innerText = getUnitPower('spearman');
+            getEl('pow-archer').innerText = getUnitPower('archer');
+            getEl('pow-knight').innerText = getUnitPower('knight');
+
+            getEl('defense-power').innerText = getDefensePower();
+            getEl('count-spearman').innerText = state.military.spearman;
+            getEl('count-archer').innerText = state.military.archer;
+            getEl('count-knight').innerText = state.military.knight;
+            
+            getEl('time-display').innerText = window.formatTime(state.timeElapsed);
+            getEl('threat-timer').innerText = state.combat.timer + "s";
+            getEl('wave-count').innerText = state.combat.wave;
+
+            let wallText = "0";
+            if(state.buildings.wallLevel === 1) wallText = "15 (Palissade)";
+            if(state.buildings.wallLevel === 2) wallText = "40 (Mur de Pierre)";
+            getEl('wall-status').innerText = `Défense passive: ${wallText}`;
+
+            const atPopLimit = state.population.current >= state.population.max;
+
+            getEl('btn-create-villager').disabled = !canAfford(costs.villager) || atPopLimit;
+            getEl('btn-build-house').disabled = !canAfford(costs.house);
+            getEl('btn-build-wonder').disabled = !canAfford(costs.wonder);
+            getEl('btn-build-wall-wood').disabled = !canAfford(costs.wallWood) || state.buildings.wallLevel >= 1;
+            getEl('btn-build-wall-stone').disabled = !canAfford(costs.wallStone) || state.buildings.wallLevel >= 2;
+            
+            if (state.buildings.barracks > 0) {
+                getEl('btn-build-barracks').style.display = 'none';
+                getEl('barracks-status').style.display = 'none';
+                getEl('military-controls').style.display = 'block';
+                getEl('btn-train-spearman').disabled = !canAfford(costs.spearman) || atPopLimit;
+                getEl('btn-train-archer').disabled = !canAfford(costs.archer) || atPopLimit;
+                getEl('btn-train-knight').disabled = !canAfford(costs.knight) || atPopLimit;
+            } else {
+                getEl('btn-build-barracks').disabled = !canAfford(costs.barracks);
+            }
+
+            ['plow', 'axe', 'armor'].forEach(t => {
+                const btn = getEl(`btn-tech-${t}`);
+                if(state.techs[t]) {
+                    btn.disabled = true; btn.querySelector('.cost').innerText = "Acquis";
+                } else {
+                    let c = t === 'plow' ? costs.techPlow : t === 'axe' ? costs.techAxe : costs.techArmor;
+                    btn.disabled = !canAfford(c);
+                }
+            });
+
+            if(state.expedition.active) {
+                getEl('expedition-controls').style.display = 'none';
+                getEl('expedition-active').style.display = 'block';
+                getEl('expedition-timer').innerText = state.expedition.timer;
+            } else {
+                getEl('expedition-controls').style.display = 'block';
+                getEl('expedition-active').style.display = 'none';
+                getEl('btn-raid-small').disabled = state.military.spearman < 3;
+                getEl('btn-raid-med').disabled = state.military.spearman < 5 || state.military.archer < 3;
+                getEl('btn-raid-large').disabled = state.military.archer < 5 || state.military.knight < 3;
+            }
+        }
+
+        // --- Boucle Principale ---
+        function gameTick() {
+            if (state.gameOver) return;
+
+            let foodMult = state.techs.plow ? 1.5 : 1;
+            let woodMult = state.techs.axe ? 1.5 : 1;
+
+            state.resources.food += state.villagers.food * foodMult * state.mults.res;
+            state.resources.wood += state.villagers.wood * woodMult * state.mults.res;
+            state.resources.stone += state.villagers.stone * 0.7 * state.mults.res; 
+            state.resources.gold += state.villagers.gold * 0.5 * state.mults.res;   
+
+            state.timeElapsed++;
+            state.combat.timer--;
+            
+            if (state.timeElapsed % 10 === 0 && state.combat.timer > 15 && Math.random() < 0.05) {
+                triggerRandomEvent();
+            }
+
+            if (state.expedition.active) {
+                state.expedition.timer--;
+                if (state.expedition.timer <= 0) {
+                    const r = raids[state.expedition.type];
+                    state.military.spearman += state.expedition.troops.spearman;
+                    state.military.archer += state.expedition.troops.archer;
+                    state.military.knight += state.expedition.troops.knight;
+                    for (let res in r.reward) { state.resources[res] += r.reward[res]; }
+                    window.logEvent(`💰 Expédition réussie ! Butin récupéré.`, "success");
+                    state.expedition.active = false;
+                    if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+                }
+            }
+            
+            if (state.combat.timer <= 0) handleAttack();
+            window.updateUI();
+        }
+
+        window.onload = function() { window.updateUI(); };
+    </script>
+</body>
+</html>
