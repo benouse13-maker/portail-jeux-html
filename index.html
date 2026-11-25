@@ -11,7 +11,7 @@
         <header class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-10 border-b border-slate-800 pb-6">
             <div>
                 <h1 class="text-4xl font-black text-amber-400">🎮 Arcade HTML</h1>
-                <p id="pass-status" class="text-slate-400 mt-1">1 partie offerte par jeu • Pass illimité disponible</p>
+                <p id="pass-status" class="text-slate-400 mt-1">1 partie offerte par jeu et par jour • Pass illimité disponible</p>
             </div>
             <button id="header-code-btn" onclick="openUnlockModal(null)"
                     class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-4 py-2.5 rounded-xl self-start sm:self-auto">
@@ -28,7 +28,7 @@
             <h2 class="text-2xl font-bold text-amber-400 mb-2">Débloquer tous les jeux</h2>
             <p id="modal-game-name" class="text-sm text-slate-300 mb-3"></p>
             <p class="text-xs text-slate-400 mb-4">
-                Votre partie gratuite sur ce jeu est terminée. Obtenez le Pass complet puis entrez votre code unique :
+                Votre partie gratuite du jour sur ce jeu est terminée. Revenez demain ou activez le Pass illimité :
             </p>
             <a id="payment-link" href="#" target="_blank" rel="noopener"
                class="block w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3 rounded-xl mb-4">
@@ -59,12 +59,12 @@
             { id: 'explorateurs', title: 'Explorateurs Mobile', tag: 'Exploration vs IA', file: 'explorateurs.html' },
             { id: 'got-five', title: 'Got Five !', tag: 'Déduction', file: 'got-five.html' },
             { id: 'gemmes', title: 'Marchands de Gemmes', tag: 'Gestion / IA & 2J', file: 'splendor.html' },
-            { id: 'motocross', title: 'Motocross', tag: 'Jeux Flash', file: 'motocross.html' },
-            { id: 'pokemon', title: 'Pokémon', tag: 'RPG', file: 'poket11.html' },
+            { id: 'motocross', title: 'motocross', tag: 'jeux flash', file: 'motocross.html' },
+            { id: 'pokemon', title: 'pokemon', tag: 'rpg', file: 'poket11.html' },
             { id: 'souris', title: 'jeux des souris', tag: 'plateau', file: 'souris7.html' },
             { id: 'salade', title: 'salade de point', tag: 'jeux de carte', file: 'salade.html' },
-            { id: 'skullking', title: 'Skull King', tag: 'Jeux de cartes', file: 'skull-king.html' },
-            { id: 'shotten', title: 'Schotten Totten', tag: 'Jeux de cartes', file: 'schotten-totten.html' },
+            { id: 'skullking', title: 'skull kings', tag: 'jeux de carte', file: 'skull-king.html' },
+            { id: 'shotten', title: 'shotten totten', tag: 'jeux de carte', file: 'schotten-totten.html' },
             { id: 'monopoly', title: 'Monopoly Pocket', tag: 'Plateau 2 Joueurs', file: 'Monopoly.html' }
         ];
 
@@ -72,12 +72,33 @@
         const UNIVERSAL_CODE = 'ALR242016';
         const PAYMENT_URL = 'https://example.com/paiement';
 
+        function getTodayKey() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
         function isPassActive() {
             return localStorage.getItem('unlocked_all') === '1';
         }
 
-        function getPlaysCount(gameId) {
-            return parseInt(localStorage.getItem('plays_' + gameId) || '0', 10);
+        function getDailyPlaysCount(gameId) {
+            const today = getTodayKey();
+            const savedDate = localStorage.getItem('plays_date_' + gameId);
+            if (savedDate !== today) {
+                localStorage.setItem('plays_date_' + gameId, today);
+                localStorage.setItem('plays_day_' + gameId, '0');
+                return 0;
+            }
+            return parseInt(localStorage.getItem('plays_day_' + gameId) || '0', 10);
+        }
+
+        function incrementDailyPlays(gameId) {
+            const current = getDailyPlaysCount(gameId);
+            localStorage.setItem('plays_date_' + gameId, getTodayKey());
+            localStorage.setItem('plays_day_' + gameId, String(current + 1));
         }
 
         function openUnlockModal(game = null) {
@@ -110,8 +131,8 @@
         }
 
         function handleLaunchGame(game) {
-            if (isPassActive() || getPlaysCount(game.id) < 1) {
-                localStorage.setItem('plays_' + game.id, String(getPlaysCount(game.id) + 1));
+            if (isPassActive() || getDailyPlaysCount(game.id) < 1) {
+                incrementDailyPlays(game.id);
                 window.location.href = game.file;
             } else {
                 openUnlockModal(game);
@@ -122,7 +143,7 @@
             const active = isPassActive();
             document.getElementById('pass-status').innerText = active
                 ? '✅ Pass activé : rejouabilité illimitée sur tous les jeux'
-                : '1 partie offerte par jeu • Pass illimité disponible';
+                : '1 partie offerte par jeu et par jour • Pass illimité disponible';
 
             const codeBtn = document.getElementById('header-code-btn');
             codeBtn.style.display = active ? 'none' : 'inline-block';
@@ -131,8 +152,8 @@
             grid.innerHTML = '';
 
             GAMES.forEach(game => {
-                const plays = getPlaysCount(game.id);
-                const freeLeft = !active && plays < 1;
+                const playsToday = getDailyPlaysCount(game.id);
+                const freeLeftToday = !active && playsToday < 1;
 
                 const card = document.createElement('div');
                 card.className = 'bg-slate-900 border border-slate-800 rounded-2xl p-5 flex flex-col justify-between';
@@ -140,14 +161,14 @@
                     <div>
                         <div class="flex justify-between items-center gap-2">
                             <span class="text-xs uppercase font-bold text-amber-400">${game.tag}</span>
-                            <span class="text-xs px-2 py-0.5 rounded-full ${active ? 'bg-emerald-950 text-emerald-400' : (freeLeft ? 'bg-blue-950 text-blue-300' : 'bg-amber-950 text-amber-300')}">
-                                ${active ? 'Illimité' : (freeLeft ? '1 essai gratuit' : 'Payant')}
+                            <span class="text-xs px-2 py-0.5 rounded-full ${active ? 'bg-emerald-950 text-emerald-400' : (freeLeftToday ? 'bg-blue-950 text-blue-300' : 'bg-amber-950 text-amber-300')}">
+                                ${active ? 'Illimité' : (freeLeftToday ? '1 essai / jour' : 'Revenu demain / Pass')}
                             </span>
                         </div>
                         <h2 class="text-xl font-bold mt-2 mb-4">${game.title}</h2>
                     </div>
-                    <button class="w-full ${active || freeLeft ? 'bg-indigo-600 hover:bg-indigo-500' : 'bg-amber-600 hover:bg-amber-500'} text-white font-bold py-2.5 rounded-xl">
-                        ${active || freeLeft ? 'Jouer' : 'Débloquer'}
+                    <button class="w-full ${active || freeLeftToday ? 'bg-indigo-600 hover:bg-indigo-500' : 'bg-amber-600 hover:bg-amber-500'} text-white font-bold py-2.5 rounded-xl">
+                        ${active || freeLeftToday ? 'Jouer' : 'Débloquer'}
                     </button>
                 `;
                 card.querySelector('button').onclick = () => handleLaunchGame(game);
