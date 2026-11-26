@@ -2,18 +2,23 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Skull King</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Pirata+One&family=Roboto:wght@400;700;900&display=swap');
 
-        body {
+        html, body {
             font-family: 'Roboto', sans-serif;
             background-color: #0f172a; /* slate-900 */
             color: white;
             overflow: hidden;
-            touch-action: none; /* Prevent pull to refresh */
+            touch-action: none;
+            position: fixed;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            -webkit-touch-callout: none; /* Empêche le menu contextuel natif sur appui long */
         }
         .pirate-font { font-family: 'Pirata One', cursive; }
         
@@ -28,19 +33,19 @@
             0% { transform: scale(0.8) translateY(-20px); opacity: 0; }
             100% { transform: scale(1) translateY(0); opacity: 1; }
         }
-        .animate-pop { animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        .animate-pop { animation: popIn 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
         
         @keyframes fadeIn {
             from { opacity: 0; }
             to { opacity: 1; }
         }
-        .animate-fade { animation: fadeIn 0.3s ease-out forwards; }
+        .animate-fade { animation: fadeIn 0.25s ease-out forwards; }
     </style>
 </head>
-<body class="h-screen h-[100dvh] w-screen flex flex-col select-none touch-manipulation overflow-hidden bg-slate-900">
+<body class="flex flex-col select-none touch-manipulation overflow-hidden bg-slate-900">
 
     <!-- CONTAINER PRINCIPAL -->
-    <div id="app" class="flex-1 w-full flex flex-col relative overflow-hidden"></div>
+    <div id="app" class="flex-1 w-full h-full flex flex-col relative overflow-hidden"></div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
@@ -93,26 +98,127 @@
             escape: '🏳️', pirate: '🏴‍☠️', mermaid: '🧜‍♀️', sk: '👑💀', mary: '👩‍🎤'
         };
 
+        const CARD_INFO = {
+            sk: {
+                title: 'Skull King',
+                icon: '👑💀',
+                badge: 'Roi des Mers',
+                badgeClass: 'bg-yellow-500 text-black',
+                rules: [
+                    'Bat toutes les cartes de couleur (y compris les atouts noirs) et tous les Pirates.',
+                    'Bonus : Rapporte +30 pts par Pirate capturé dans le pli (si vous réussissez votre pari).',
+                    'Point faible : Se fait battre par la Sirène !'
+                ]
+            },
+            pirate: {
+                title: 'Pirate',
+                icon: '🏴‍☠️',
+                badge: 'Personnage',
+                badgeClass: 'bg-red-600 text-white',
+                rules: [
+                    'Bat toutes les cartes numérotées (couleurs et atouts noirs) ainsi que les Sirènes.',
+                    'Si plusieurs Pirates sont joués dans le même pli, le premier posé l’emporte.',
+                    'Point faible : Est battu par le Skull King.'
+                ]
+            },
+            mermaid: {
+                title: 'Sirène',
+                icon: '🧜‍♀️',
+                badge: 'Personnage',
+                badgeClass: 'bg-cyan-400 text-slate-900',
+                rules: [
+                    'Bat toutes les cartes numérotées (couleurs et atouts noirs).',
+                    'Pouvoir spécial : Bat le Skull King et rapporte un bonus de +50 pts !',
+                    'Point faible : Se fait manger par les Pirates.'
+                ]
+            },
+            mary: {
+                title: 'Scary Mary',
+                icon: '👩‍🎤',
+                badge: 'Carte Caméléon',
+                badgeClass: 'bg-pink-500 text-white',
+                rules: [
+                    'Au moment de la jouer, vous choisissez son pouvoir :',
+                    '• Mode Pirate (🏴‍☠️) : Agit exactement comme un Pirate classique.',
+                    '• Mode Fuite (🏳️) : Agit comme un drapeau blanc pour éviter de prendre le pli.'
+                ]
+            },
+            escape: {
+                title: 'Fuite (Drapeau Blanc)',
+                icon: '🏳️',
+                badge: 'Carte Spéciale',
+                badgeClass: 'bg-gray-200 text-gray-800',
+                rules: [
+                    'Ne gagne jamais le pli, sauf si tous les joueurs posent une Fuite (le premier joueur remporte alors le pli).',
+                    'Peut être jouée à tout moment, même si vous possédez la couleur demandée.'
+                ]
+            },
+            black: {
+                title: 'Atout Noir (Jolly Roger)',
+                icon: '⬛',
+                badge: 'Couleur Maîtresse',
+                badgeClass: 'bg-slate-950 text-white border border-slate-600',
+                rules: [
+                    'C’est la couleur d’atout : un 1 Noir bat un 13 Jaune, Vert ou Violet.',
+                    'Vous devez fournir du Noir s’il est demandé, sinon vous pouvez couper avec si vous n’avez pas la couleur demandée.',
+                    'Est battu par les Pirates, Sirènes et le Skull King.'
+                ]
+            },
+            yellow: {
+                title: 'Carte Jaune (Coffres)',
+                icon: '🟨',
+                badge: 'Couleur Standard',
+                badgeClass: 'bg-yellow-400 text-black',
+                rules: [
+                    'Couleur classique (valeurs de 1 à 13). La valeur la plus haute de la couleur demandée l’emporte.',
+                    'Obligation de fournir la couleur demandée si vous en avez en main (les cartes spéciales peuvent toujours être jouées).'
+                ]
+            },
+            green: {
+                title: 'Carte Verte (Perroquets)',
+                icon: '🟩',
+                badge: 'Couleur Standard',
+                badgeClass: 'bg-green-500 text-white',
+                rules: [
+                    'Couleur classique (valeurs de 1 à 13). La valeur la plus haute de la couleur demandée l’emporte.',
+                    'Obligation de fournir la couleur demandée si vous en avez en main (les cartes spéciales peuvent toujours être jouées).'
+                ]
+            },
+            purple: {
+                title: 'Carte Violette (Cartes)',
+                icon: '🟪',
+                badge: 'Couleur Standard',
+                badgeClass: 'bg-purple-600 text-white',
+                rules: [
+                    'Couleur classique (valeurs de 1 à 13). La valeur la plus haute de la couleur demandée l’emporte.',
+                    'Obligation de fournir la couleur demandée si vous en avez en main (les cartes spéciales peuvent toujours être jouées).'
+                ]
+            }
+        };
+
         const AI_NAMES = ['Barbe Noire', 'Anne Bonny', 'Jack Rackham', 'Bartholomew', 'Henry Morgan', 'Zheng Yi Sao'];
 
         // --- ETAT GLOBAL DU JEU ---
         let state = {
-            phase: 'SETUP', // SETUP, PLAYING, BIDDING, MARY_CHOICE, TRICK_END, ROUND_END, GAME_OVER
-            players: [], // { id, name, isHuman, hand, bid, tricks, score, roundBonus }
+            phase: 'SETUP',
+            players: [],
             round: 1,
             cardsToDeal: 0,
             dealerIdx: 0,
             currentTurnIdx: 0,
-            trick: [], // { playerIdx, card, maryChoice }
+            trick: [],
             ledSuit: null,
             tricksPlayed: 0,
             lastTrickWinner: null,
             pendingMaryCard: null,
+            inspectedCardKey: null, // Clé de la carte inspectée par appui long
             leaderboard: [],
             isLeaderboardLoading: false
         };
 
-        let timers = []; // Pour gérer/nettoyer les setTimeout
+        let timers = [];
+        let pressTimer = null;
+        let isLongPressTriggered = false;
 
         // --- UTILITAIRES ---
         const clearAllTimers = () => { timers.forEach(clearTimeout); timers = []; };
@@ -130,7 +236,6 @@
             deck.push({ id: id++, type: TYPES.SK });
             deck.push({ id: id++, type: TYPES.MARY });
             
-            // Fisher-Yates Shuffle
             for (let i = deck.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
                 [deck[i], deck[j]] = [deck[j], deck[i]];
@@ -142,14 +247,44 @@
             if (!ledSuit) return hand;
             const hasLedSuit = hand.some(c => c.type === TYPES.NUMBER && c.suit === ledSuit);
             if (!hasLedSuit) return hand;
-            // Obligation de fournir la couleur, sauf cartes spéciales
             return hand.filter(c => c.type !== TYPES.NUMBER || c.suit === ledSuit);
         };
 
-        // --- LOGIQUE METIER (STATE MACHINE) ---
+        // --- GESTION APPUI LONG (LONG PRESS) ---
+        window.startCardPress = (styleKey) => {
+            isLongPressTriggered = false;
+            clearTimeout(pressTimer);
+            pressTimer = setTimeout(() => {
+                isLongPressTriggered = true;
+                state.inspectedCardKey = styleKey;
+                if (navigator.vibrate) navigator.vibrate(40); // Petit retour haptique sur mobile
+                render();
+            }, 420);
+        };
+
+        window.cancelCardPress = () => {
+            clearTimeout(pressTimer);
+        };
+
+        window.endCardPress = (cardId, isPlayable) => {
+            clearTimeout(pressTimer);
+            // Si l'appui long a ouvert la modale d'info, on ne joue pas la carte au relâchement
+            if (isLongPressTriggered) {
+                isLongPressTriggered = false;
+                return;
+            }
+            if (isPlayable && cardId !== null) {
+                window.handleCardClick(cardId);
+            }
+        };
+
+        window.closeCardInfo = () => {
+            state.inspectedCardKey = null;
+            render();
+        };
+
+        // --- LOGIQUE METIER ---
         const dispatch = (action, payload) => {
-            // console.log("DISPATCH:", action, payload); // Debug
-            
             switch (action) {
                 case 'START_GAME':
                     const numAIs = payload;
@@ -168,6 +303,7 @@
                     state.ledSuit = null;
                     state.tricksPlayed = 0;
                     state.lastTrickWinner = null;
+                    state.inspectedCardKey = null;
                     
                     const deck = generateDeck();
                     state.cardsToDeal = Math.min(state.round, Math.floor(66 / state.players.length));
@@ -177,7 +313,6 @@
                         for (let i = 0; i < state.cardsToDeal; i++) p.hand.push(deck.pop());
                     });
                     
-                    // Tri de la main du joueur
                     state.players[0].hand.sort((a, b) => {
                         if (a.type === TYPES.NUMBER && b.type === TYPES.NUMBER) {
                             if (a.suit === SUITS.BLACK && b.suit !== SUITS.BLACK) return -1;
@@ -197,7 +332,6 @@
 
                 case 'HUMAN_BID':
                     state.players[0].bid = payload;
-                    // Auto-bid IA
                     for (let i = 1; i < state.players.length; i++) {
                         let estimate = 0;
                         state.players[i].hand.forEach(c => {
@@ -276,7 +410,7 @@
                                 }
                             }
                         });
-                        winner = bestNum || state.trick[0]; // First Escape si que des Escapes
+                        winner = bestNum || state.trick[0];
                     }
 
                     const winnerIdx = winner.playerIdx;
@@ -338,7 +472,7 @@
                     }
                     dispatch('PLAY_CARD', { playerIdx: state.currentTurnIdx, cardId: cardToPlay.id, maryChoice });
                 }
-            }, 800); // Délai IA
+            }, 800);
         };
 
         const saveAndFetchHighscores = async () => {
@@ -389,8 +523,8 @@
             }
         };
 
-        // --- RENDU UI (VANILLA JS TEMPLATES) ---
-        const renderCardHTML = (card, isPlayable = false) => {
+        // --- RENDU UI ---
+        const renderCardHTML = (card, isPlayable = false, isBidding = false, isOnTable = false) => {
             if (!card) return '';
             const styleKey = card.type === TYPES.NUMBER ? card.suit : card.type;
             const classes = CARD_STYLES[styleKey] || CARD_STYLES.black;
@@ -399,22 +533,35 @@
             if (card.type === TYPES.NUMBER) {
                 content = `
                     <div class="flex flex-col items-center justify-between h-full p-1 relative w-full">
-                        <span class="absolute top-1 left-1 text-sm sm:text-base font-black">${card.value}</span>
-                        <span class="text-3xl my-auto drop-shadow-md">${ICONS[card.suit]}</span>
-                        <span class="absolute bottom-1 right-1 text-sm sm:text-base font-black rotate-180">${card.value}</span>
+                        <span class="absolute top-1 left-1.5 text-xs sm:text-base font-black">${card.value}</span>
+                        <span class="text-2xl sm:text-3xl my-auto drop-shadow-md">${ICONS[card.suit]}</span>
+                        <span class="absolute bottom-1 right-1.5 text-xs sm:text-base font-black rotate-180">${card.value}</span>
                     </div>`;
             } else {
                 content = `
                     <div class="flex flex-col items-center justify-center h-full w-full">
-                        <div class="text-3xl drop-shadow-lg">${ICONS[card.type]}</div>
+                        <div class="text-2xl sm:text-3xl drop-shadow-lg">${ICONS[card.type]}</div>
                     </div>`;
             }
 
-            const hoverFx = isPlayable ? "cursor-pointer hover:-translate-y-3 hover:shadow-[0_0_15px_rgba(255,215,0,0.8)] z-10" : "opacity-60 scale-95";
-            const clickAttr = isPlayable ? `onclick="window.handleCardClick(${card.id})"` : '';
+            let stateFx = "opacity-60 scale-95";
+            if (isPlayable) {
+                stateFx = "cursor-pointer hover:-translate-y-2 hover:shadow-[0_0_15px_rgba(255,215,0,0.8)] z-10";
+            } else if (isBidding || isOnTable) {
+                stateFx = "opacity-100 scale-100";
+            }
+
+            const cardIdArg = isPlayable ? card.id : 'null';
+            const pressHandlers = `
+                onpointerdown="window.startCardPress('${styleKey}')"
+                onpointerup="window.endCardPress(${cardIdArg}, ${isPlayable})"
+                onpointerleave="window.cancelCardPress()"
+                onpointercancel="window.cancelCardPress()"
+                oncontextmenu="event.preventDefault()"
+            `;
 
             return `
-                <button type="button" ${clickAttr} class="w-14 h-20 sm:w-20 sm:h-28 rounded-xl shadow-md border-2 flex-shrink-0 transition-all duration-200 ${classes} ${hoverFx} relative select-none block p-0 m-0 outline-none appearance-none cursor-pointer">
+                <button type="button" ${pressHandlers} class="w-14 h-20 sm:w-20 sm:h-28 rounded-xl shadow-md border-2 flex-shrink-0 transition-all duration-200 ${classes} ${stateFx} relative select-none block p-0 m-0 outline-none appearance-none">
                     <div class="pointer-events-none w-full h-full flex flex-col">
                         ${content}
                     </div>
@@ -426,7 +573,7 @@
             
             if (state.phase === 'SETUP') {
                 appDiv.innerHTML = `
-                    <div class="min-h-screen flex flex-col items-center justify-center p-4">
+                    <div class="h-full flex flex-col items-center justify-center p-4">
                         <h1 class="text-5xl pirate-font text-yellow-500 mb-2 drop-shadow-[0_0_10px_rgba(234,179,8,0.8)] tracking-wider">SKULL KING</h1>
                         <p class="text-slate-400 mb-8 font-semibold">Le jeu de plis des pirates</p>
                         <div class="bg-slate-800 p-6 rounded-2xl shadow-2xl border-2 border-slate-700 w-full max-w-sm text-center">
@@ -441,24 +588,24 @@
 
             const human = state.players[0];
             const validHumanCards = state.phase === 'PLAYING' && state.currentTurnIdx === 0 ? getValidCards(human.hand, state.ledSuit) : [];
+            const inspectedInfo = state.inspectedCardKey ? CARD_INFO[state.inspectedCardKey] : null;
 
-            // Construction du HTML principal
             let html = `
                 <!-- HEADER -->
                 <div class="flex justify-between items-center px-4 py-2 bg-slate-950 border-b-2 border-slate-800 text-sm z-10 shrink-0 shadow-md">
-                    <div class="font-black text-yellow-500 tracking-wide text-lg pirate-font">Manche ${state.round}/10</div>
-                    ${state.lastTrickWinner ? `<div class="text-cyan-400 animate-fade font-bold">${state.lastTrickWinner} remporte le pli !</div>` : ''}
+                    <div class="font-black text-yellow-500 tracking-wider text-lg pirate-font">Manche ${state.round} / 10</div>
+                    ${state.lastTrickWinner ? `<div class="text-cyan-400 animate-fade font-bold text-xs sm:text-sm">${state.lastTrickWinner} remporte le pli !</div>` : `<div class="text-[11px] text-slate-500 italic">Appui long sur une carte = pouvoir</div>`}
                 </div>
 
                 <!-- ZONE IA (Haut) -->
                 <div class="flex justify-center gap-2 p-2 bg-slate-900 overflow-x-auto shrink-0 shadow-inner hide-scrollbar border-b border-slate-800">
                     ${state.players.slice(1).map(ai => `
-                        <div class="flex flex-col items-center p-2 rounded-xl min-w-[75px] transition-colors ${state.currentTurnIdx === ai.id && ['PLAYING', 'MARY_CHOICE', 'TRICK_END'].includes(state.phase) ? 'bg-yellow-600/20 border-2 border-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.5)]' : 'bg-slate-800 border-2 border-slate-700'}">
+                        <div class="flex flex-col items-center p-1.5 sm:p-2 rounded-xl min-w-[72px] transition-colors ${state.currentTurnIdx === ai.id && ['PLAYING', 'MARY_CHOICE', 'TRICK_END'].includes(state.phase) ? 'bg-yellow-600/20 border-2 border-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.5)]' : 'bg-slate-800 border-2 border-slate-700'}">
                             <span class="text-xs font-bold text-slate-200 truncate w-full text-center">${ai.name.split(' ')[0]}</span>
-                            ${state.dealerIdx === ai.id ? `<span class="text-[10px] bg-white text-black px-1.5 py-0.5 rounded mt-1 font-bold">DLR</span>` : ''}
-                            <div class="text-[11px] text-slate-300 mt-1">Pari: <span class="font-bold text-white">${ai.bid !== null ? ai.bid : '?'}</span></div>
+                            ${state.dealerIdx === ai.id ? `<span class="text-[10px] bg-white text-black px-1.5 py-0.5 rounded mt-0.5 font-bold">DLR</span>` : ''}
+                            <div class="text-[11px] text-slate-300 mt-0.5">Pari: <span class="font-bold text-white">${ai.bid !== null ? ai.bid : '?'}</span></div>
                             <div class="text-xs text-green-400 font-bold">Plis: ${ai.tricks}</div>
-                            <div class="text-[10px] text-slate-500 mt-0.5">${ai.hand.length} 🎴</div>
+                            <div class="text-[10px] text-slate-500">${ai.hand.length} 🎴</div>
                         </div>
                     `).join('')}
                 </div>
@@ -469,27 +616,27 @@
                     <!-- Cartes jouées -->
                     ${state.trick.map((play, idx) => {
                         const angle = (idx * (360 / state.players.length)) * (Math.PI / 180);
-                        const radius = window.innerWidth < 400 ? 65 : 110;
+                        const radius = window.innerWidth < 400 ? 60 : 105;
                         let displayCard = play.card;
                         if (play.maryChoice) displayCard = { ...play.card, type: play.maryChoice };
 
                         return `
                             <div class="absolute transition-all duration-300 z-10 animate-fade" style="transform: translate(${Math.cos(angle) * radius}px, ${Math.sin(angle) * radius}px)">
-                                <div class="text-[10px] text-center bg-black/80 text-white rounded px-1 mb-1 font-bold truncate w-full shadow-sm">${state.players[play.playerIdx].name}</div>
-                                ${renderCardHTML(displayCard, false)}
+                                <div class="text-[10px] text-center bg-black/80 text-white rounded px-1 mb-1 font-bold truncate w-full shadow-sm">${state.players[play.playerIdx].name.split(' ')[0]}</div>
+                                ${renderCardHTML(displayCard, false, false, true)}
                             </div>
                         `;
                     }).join('')}
 
                     <!-- MODAL ENCHÈRES -->
                     ${state.phase === 'BIDDING' ? `
-                        <div class="absolute inset-0 pointer-events-none flex items-center justify-center z-20">
-                            <div class="pointer-events-auto bg-slate-900/95 p-6 rounded-2xl border-2 border-yellow-500 shadow-[0_0_30px_rgba(0,0,0,0.8)] text-center max-w-sm w-11/12 transform -translate-y-4 animate-pop">
-                                <h2 class="text-2xl font-black text-yellow-500 mb-2 drop-shadow-md pirate-font tracking-wide">Votre Pari</h2>
-                                <p class="text-sm text-slate-300 mb-6 font-semibold">Regardez vos couleurs en bas avant de parier.</p>
+                        <div class="absolute inset-0 pointer-events-none flex items-center justify-center z-20 p-4">
+                            <div class="pointer-events-auto bg-slate-900/95 p-5 rounded-2xl border-2 border-yellow-500 shadow-[0_0_30px_rgba(0,0,0,0.8)] text-center max-w-sm w-full animate-pop">
+                                <h2 class="text-2xl font-black text-yellow-500 mb-1 drop-shadow-md pirate-font tracking-wider">Votre Pari</h2>
+                                <p class="text-xs sm:text-sm text-slate-300 mb-4 font-semibold">Regardez vos cartes en bas (appui long pour l'aide).</p>
                                 <div class="flex flex-wrap justify-center gap-2">
                                     ${[...Array(human.hand.length + 1)].map((_, i) => `
-                                        <button onclick="window.handleAction('HUMAN_BID', ${i})" class="w-12 h-12 bg-yellow-500 hover:bg-yellow-400 text-black font-black text-xl rounded-xl shadow-lg transition-transform active:scale-95">${i}</button>
+                                        <button onclick="window.handleAction('HUMAN_BID', ${i})" class="w-11 h-11 sm:w-12 sm:h-12 bg-yellow-500 hover:bg-yellow-400 text-black font-black text-lg sm:text-xl rounded-xl shadow-lg transition-transform active:scale-95">${i}</button>
                                     `).join('')}
                                 </div>
                             </div>
@@ -508,103 +655,130 @@
                             </div>
                         </div>
                     ` : ''}
-
-                    <!-- ECRAN FIN DE MANCHE -->
-                    ${state.phase === 'ROUND_END' ? `
-                        <div class="absolute inset-0 z-40 bg-black/90 flex flex-col items-center justify-center p-4">
-                            <div class="bg-slate-800 p-5 rounded-2xl w-full max-w-sm border-2 border-cyan-600 shadow-[0_0_20px_rgba(8,145,178,0.5)] animate-pop">
-                                <h2 class="text-2xl font-black text-center text-cyan-400 mb-6 pirate-font tracking-wider">Scores - Manche ${state.round}</h2>
-                                <div class="flex flex-col gap-2 mb-6 max-h-[50vh] overflow-y-auto pr-2 custom-scrollbar">
-                                    ${[...state.players].sort((a,b) => b.score - a.score).map(p => `
-                                        <div class="flex justify-between items-center p-3 rounded-lg ${p.isHuman ? 'bg-cyan-900/50 border border-cyan-500' : 'bg-slate-700/50 border border-slate-600'}">
-                                            <span class="font-bold truncate w-1/3 text-sm">${p.name}</span>
-                                            <div class="text-xs text-slate-300 w-1/3 text-center flex flex-col">
-                                                <span>Pari: ${p.bid}</span>
-                                                <span>Fait: ${p.tricks}</span>
-                                            </div>
-                                            <span class="font-black w-1/3 text-right text-lg ${p.score < 0 ? 'text-red-400' : 'text-green-400'}">${p.score}</span>
-                                        </div>
-                                    `).join('')}
-                                </div>
-                                <button onclick="window.handleAction('NEXT_ROUND')" class="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-black text-lg py-4 rounded-xl shadow-lg transition-transform active:scale-95">
-                                    ${state.round === 10 ? 'Voir le Classement Final' : 'Manche Suivante'}
-                                </button>
-                            </div>
-                        </div>
-                    ` : ''}
-
-                    <!-- ECRAN FIN DE PARTIE & LEADERBOARD -->
-                    ${state.phase === 'GAME_OVER' ? `
-                        <div class="absolute inset-0 z-50 bg-slate-950 flex flex-col items-center p-4 overflow-y-auto custom-scrollbar pb-10">
-                            <h1 class="text-4xl font-black text-yellow-500 mt-4 mb-6 drop-shadow-[0_0_15px_rgba(234,179,8,1)] text-center pirate-font tracking-wider">FIN DE PARTIE</h1>
-                            <div class="w-full max-w-md flex flex-col gap-6 animate-fade">
-                                <!-- Classement Final Local -->
-                                <div class="bg-slate-800 p-4 rounded-2xl border-2 border-yellow-600 shadow-2xl">
-                                    <h2 class="text-xl text-yellow-500 font-bold mb-4 text-center border-b border-yellow-800 pb-2 pirate-font">Classement Final</h2>
-                                    <div class="flex flex-col gap-2">
-                                        ${[...state.players].sort((a,b) => b.score - a.score).map((p, i) => `
-                                            <div class="flex justify-between items-center text-sm md:text-base p-2 rounded ${p.isHuman ? 'bg-yellow-500/20 border border-yellow-500 text-yellow-400 font-bold' : 'text-slate-200'}">
-                                                <span>${i+1}. ${p.name}</span>
-                                                <span class="font-black">${p.score} pts</span>
-                                            </div>
-                                        `).join('')}
-                                    </div>
-                                </div>
-                                <!-- Leaderboard Global Firebase -->
-                                <div class="bg-slate-800 p-4 rounded-2xl border-2 border-cyan-600 shadow-2xl">
-                                    <h2 class="text-xl text-cyan-400 font-bold mb-4 text-center border-b border-cyan-800 pb-2 pirate-font">Top 10 Mondial</h2>
-                                    ${state.isLeaderboardLoading ? `<p class="text-center text-slate-400 text-sm py-4 animate-pulse">Synchronisation cloud...</p>` : `
-                                        <div class="flex flex-col gap-2">
-                                            ${state.leaderboard.length === 0 ? `<p class="text-center text-slate-500">Aucun score disponible.</p>` : state.leaderboard.map((entry, idx) => {
-                                                const isMe = currentUser && entry.userId === currentUser.uid;
-                                                return `
-                                                    <div class="flex justify-between items-center text-sm p-2 rounded border ${isMe ? 'bg-cyan-900/40 border-cyan-400 text-white' : 'bg-slate-700/50 border-slate-600 text-slate-300'}">
-                                                        <span class="font-bold">${idx + 1}. ${entry.name} ${isMe ? '<span class="text-cyan-400 text-xs">(Moi)</span>' : ''}</span>
-                                                        <span class="font-black text-cyan-300">${entry.score} pts</span>
-                                                    </div>
-                                                `;
-                                            }).join('')}
-                                        </div>
-                                    `}
-                                </div>
-                                <button onclick="window.handleAction('START_GAME', ${state.players.length - 1})" class="w-full bg-yellow-500 hover:bg-yellow-400 text-black font-black text-xl py-4 rounded-xl shadow-[0_0_20px_rgba(234,179,8,0.5)] transition-transform active:scale-95">Rejouer une partie</button>
-                            </div>
-                        </div>
-                    ` : ''}
                 </div>
 
                 <!-- ZONE DU JOUEUR (Bas) -->
-                <div class="bg-slate-950 p-2 flex flex-col border-t-2 border-slate-800 shrink-0 z-10 shadow-[0_-5px_15px_rgba(0,0,0,0.5)] w-full" style="padding-bottom: max(0.5rem, env(safe-area-inset-bottom));">
-                    <div class="flex justify-between items-end mb-2 px-2">
-                        <div>
-                            <div class="text-sm font-black text-yellow-500 flex items-center gap-2">VOUS ${state.dealerIdx === 0 ? `<span class="text-[10px] bg-white text-black px-1.5 py-0.5 rounded font-bold">DLR</span>` : ''}</div>
-                            <div class="text-xs text-slate-400 font-semibold mt-1">Score: <span class="text-white font-bold">${human.score}</span></div>
+                <div class="bg-slate-950 pt-2 px-2 pb-4 sm:pb-3 flex flex-col border-t-2 border-slate-800 shrink-0 z-10 shadow-[0_-5px_15px_rgba(0,0,0,0.5)] w-full" style="padding-bottom: max(1rem, env(safe-area-inset-bottom));">
+                    <div class="flex justify-between items-center mb-1.5 px-2">
+                        <div class="flex items-center gap-3">
+                            <div class="text-sm font-black text-yellow-500 flex items-center gap-1.5">VOUS ${state.dealerIdx === 0 ? `<span class="text-[10px] bg-white text-black px-1.5 py-0.5 rounded font-bold">DLR</span>` : ''}</div>
+                            <div class="text-xs text-slate-400 font-semibold">Score: <span class="text-white font-bold">${human.score}</span></div>
                         </div>
                         <div class="text-center">
-                            ${state.phase === 'PLAYING' && state.currentTurnIdx === 0 ? `<span class="bg-yellow-500 text-black text-xs font-black px-4 py-1.5 rounded-full animate-pulse shadow-md">À vous !</span>` : ''}
-                            ${state.phase === 'BIDDING' ? `<span class="text-yellow-400 text-xs font-bold animate-pulse">Examinez vos cartes</span>` : ''}
+                            ${state.phase === 'PLAYING' && state.currentTurnIdx === 0 ? `<span class="bg-yellow-500 text-black text-xs font-black px-3 py-1 rounded-full animate-pulse shadow-md">À vous !</span>` : ''}
+                            ${state.phase === 'BIDDING' ? `<span class="text-yellow-400 text-xs font-bold animate-pulse">Vos cartes 👇</span>` : ''}
                         </div>
-                        <div class="text-right">
-                            <div class="text-xs text-slate-400 font-semibold mt-1">Pari: <span class="text-white font-bold">${human.bid !== null ? human.bid : '-'}</span></div>
+                        <div class="flex items-center gap-3 text-right">
+                            <div class="text-xs text-slate-400 font-semibold">Pari: <span class="text-white font-bold">${human.bid !== null ? human.bid : '-'}</span></div>
                             <div class="text-xs text-green-400 font-semibold">Plis: <span class="font-bold text-green-300">${human.tricks}</span></div>
                         </div>
                     </div>
                     <!-- Main du joueur -->
-                    <div class="flex gap-2 overflow-x-auto items-center pb-4 pt-2 px-2 hide-scrollbar min-h-[95px] sm:min-h-[120px]">
+                    <div class="flex gap-2 overflow-x-auto items-center py-1 px-2 hide-scrollbar min-h-[88px] sm:min-h-[120px] justify-start sm:justify-center">
                         ${human.hand.map(card => {
                             const isPlayable = (state.phase === 'PLAYING' && state.currentTurnIdx === 0) ? !!validHumanCards.find(c => c.id === card.id) : false;
-                            return renderCardHTML(card, isPlayable);
+                            const isBidding = state.phase === 'BIDDING';
+                            return renderCardHTML(card, isPlayable, isBidding, false);
                         }).join('')}
                     </div>
                 </div>
+
+                <!-- MODAL INFO POUVOIR CARTE (APPUI LONG) -->
+                ${inspectedInfo ? `
+                    <div onclick="window.closeCardInfo()" class="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade">
+                        <div onclick="event.stopPropagation()" class="bg-slate-800 border-2 border-yellow-500 rounded-2xl p-5 max-w-sm w-full shadow-[0_0_30px_rgba(234,179,8,0.4)] animate-pop">
+                            <div class="flex items-center gap-3 mb-3 border-b border-slate-700 pb-3">
+                                <div class="text-4xl bg-slate-900 w-14 h-14 rounded-xl flex items-center justify-center border border-slate-700 shadow-inner">
+                                    ${inspectedInfo.icon}
+                                </div>
+                                <div>
+                                    <span class="text-[10px] uppercase tracking-wider font-black px-2 py-0.5 rounded ${inspectedInfo.badgeClass}">${inspectedInfo.badge}</span>
+                                    <h3 class="text-xl font-black text-white mt-1">${inspectedInfo.title}</h3>
+                                </div>
+                            </div>
+                            <ul class="space-y-2.5 text-sm text-slate-200 mb-5">
+                                ${inspectedInfo.rules.map(rule => `
+                                    <li class="flex items-start gap-2">
+                                        <span class="text-yellow-500 font-bold mt-0.5">•</span>
+                                        <span>${rule}</span>
+                                    </li>
+                                `).join('')}
+                            </ul>
+                            <button onclick="window.closeCardInfo()" class="w-full bg-yellow-500 hover:bg-yellow-400 text-black font-black py-3 rounded-xl shadow-md transition-transform active:scale-95">
+                                Compris
+                            </button>
+                        </div>
+                    </div>
+                ` : ''}
+
+                <!-- OVERLAY PLEIN ECRAN : FIN DE MANCHE -->
+                ${state.phase === 'ROUND_END' ? `
+                    <div class="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
+                        <div class="bg-slate-800 p-5 rounded-2xl w-full max-w-sm border-2 border-cyan-600 shadow-[0_0_25px_rgba(8,145,178,0.6)] animate-pop flex flex-col max-h-[90dvh]">
+                            <h2 class="text-2xl sm:text-3xl font-black text-center text-cyan-400 mb-4 pirate-font tracking-wider shrink-0">Scores - Manche ${state.round}</h2>
+                            <div class="flex flex-col gap-2 mb-5 overflow-y-auto pr-1 custom-scrollbar flex-1">
+                                ${[...state.players].sort((a,b) => b.score - a.score).map(p => `
+                                    <div class="flex justify-between items-center p-2.5 sm:p-3 rounded-xl ${p.isHuman ? 'bg-cyan-900/50 border border-cyan-500' : 'bg-slate-700/50 border border-slate-600'}">
+                                        <span class="font-bold truncate w-5/12 text-sm">${p.name}</span>
+                                        <div class="text-xs text-slate-300 w-4/12 text-center flex flex-col">
+                                            <span>Pari: <strong class="text-white">${p.bid}</strong></span>
+                                            <span>Fait: <strong class="text-white">${p.tricks}</strong></span>
+                                        </div>
+                                        <span class="font-black w-3/12 text-right text-lg ${p.score < 0 ? 'text-red-400' : 'text-green-400'}">${p.score}</span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                            <button onclick="window.handleAction('NEXT_ROUND')" class="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-black text-lg py-3.5 rounded-xl shadow-lg transition-transform active:scale-95 shrink-0">
+                                ${state.round === 10 ? 'Voir le Classement Final' : 'Manche Suivante'}
+                            </button>
+                        </div>
+                    </div>
+                ` : ''}
+
+                <!-- OVERLAY PLEIN ECRAN : FIN DE PARTIE & LEADERBOARD -->
+                ${state.phase === 'GAME_OVER' ? `
+                    <div class="fixed inset-0 z-50 bg-slate-950 flex flex-col items-center p-4 overflow-y-auto custom-scrollbar pb-10">
+                        <h1 class="text-4xl font-black text-yellow-500 mt-4 mb-6 drop-shadow-[0_0_15px_rgba(234,179,8,1)] text-center pirate-font tracking-wider">FIN DE PARTIE</h1>
+                        <div class="w-full max-w-md flex flex-col gap-6 animate-fade">
+                            <!-- Classement Final Local -->
+                            <div class="bg-slate-800 p-4 rounded-2xl border-2 border-yellow-600 shadow-2xl">
+                                <h2 class="text-xl text-yellow-500 font-bold mb-4 text-center border-b border-yellow-800 pb-2 pirate-font">Classement Final</h2>
+                                <div class="flex flex-col gap-2">
+                                    ${[...state.players].sort((a,b) => b.score - a.score).map((p, i) => `
+                                        <div class="flex justify-between items-center text-sm md:text-base p-2 rounded ${p.isHuman ? 'bg-yellow-500/20 border border-yellow-500 text-yellow-400 font-bold' : 'text-slate-200'}">
+                                            <span>${i+1}. ${p.name}</span>
+                                            <span class="font-black">${p.score} pts</span>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                            <!-- Leaderboard Global Firebase -->
+                            <div class="bg-slate-800 p-4 rounded-2xl border-2 border-cyan-600 shadow-2xl">
+                                <h2 class="text-xl text-cyan-400 font-bold mb-4 text-center border-b border-cyan-800 pb-2 pirate-font">Top 10 Mondial</h2>
+                                ${state.isLeaderboardLoading ? `<p class="text-center text-slate-400 text-sm py-4 animate-pulse">Synchronisation cloud...</p>` : `
+                                    <div class="flex flex-col gap-2">
+                                        ${state.leaderboard.length === 0 ? `<p class="text-center text-slate-500">Aucun score disponible.</p>` : state.leaderboard.map((entry, idx) => {
+                                            const isMe = currentUser && entry.userId === currentUser.uid;
+                                            return `
+                                                <div class="flex justify-between items-center text-sm p-2 rounded border ${isMe ? 'bg-cyan-900/40 border-cyan-400 text-white' : 'bg-slate-700/50 border-slate-600 text-slate-300'}">
+                                                    <span class="font-bold">${idx + 1}. ${entry.name} ${isMe ? '<span class="text-cyan-400 text-xs">(Moi)</span>' : ''}</span>
+                                                    <span class="font-black text-cyan-300">${entry.score} pts</span>
+                                                </div>
+                                            `;
+                                        }).join('')}
+                                    </div>
+                                `}
+                            </div>
+                            <button onclick="window.handleAction('START_GAME', ${state.players.length - 1})" class="w-full bg-yellow-500 hover:bg-yellow-400 text-black font-black text-xl py-4 rounded-xl shadow-[0_0_20px_rgba(234,179,8,0.5)] transition-transform active:scale-95">Rejouer une partie</button>
+                        </div>
+                    </div>
+                ` : ''}
             `;
             
             appDiv.innerHTML = html;
         };
 
-        // Lancement initial UI
         render();
-
     </script>
 </body>
 </html>
